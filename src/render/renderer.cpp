@@ -473,7 +473,10 @@ void Renderer::drawLabels(const RenderSnapshot& snap, const ViewState& vs) {
 }
 
 void Renderer::drawTooltip(const RenderSnapshot& snap, const ViewState&) {
-    if (hover_ < 0 || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) return;
+    // hover_ was picked against last frame's snapshot, and the population may have shrunk
+    // since (deaths, swap-remove). Re-pick against the snapshot we are about to index.
+    hover_ = hud_.overPanel(GetMousePosition()) ? -1 : pickAgent(snap, GetMousePosition(), 8.0f);
+    if (hover_ < 0 || static_cast<std::size_t>(hover_) >= snap.agents.size() || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) return;
     const AgentVis& a = snap.agents[static_cast<std::size_t>(hover_)];
     const SpeciesVis* s = snap.findSpecies(a.species);
     if (!s) return;

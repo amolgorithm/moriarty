@@ -15,6 +15,8 @@ add_library(alife_core STATIC
   genetics/speciation.cpp
   genetics/lineage.cpp
   math/replicator.cpp
+  math/te.cpp
+  math/meanfield.cpp
   concurrency/thread_pool.cpp)
 add_library(moriarty::core ALIAS alife_core)
 target_include_directories(alife_core PUBLIC "${PROJECT_SOURCE_DIR}/include")

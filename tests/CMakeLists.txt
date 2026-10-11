@@ -4,6 +4,7 @@ add_executable(alife_tests
   test_grid.cpp
   test_agent_pool.cpp
   test_entropy.cpp
+  test_math.cpp
   test_ring_buffer.cpp
   test_genetics.cpp
   test_sim.cpp)
