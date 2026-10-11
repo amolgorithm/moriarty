@@ -1,0 +1,2 @@
+add_executable(bench_grid_rebuild bench_grid_rebuild.cpp)
+target_link_libraries(bench_grid_rebuild PRIVATE alife_core benchmark::benchmark_main alife_options)
