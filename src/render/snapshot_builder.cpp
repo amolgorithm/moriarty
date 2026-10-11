@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "alife/genetics/gpm.hpp"
-
 namespace alife::render {
 namespace {
 
@@ -12,7 +10,6 @@ AgentVis makeVis(const World& w, std::uint32_t i) {
     const auto& p = w.pool;
     const auto& k = p.read();
     const float vTop = w.cfg.eco.vTop;
-    const float* g = &p.genome[static_cast<std::size_t>(i) * kGenomeLen];
     AgentVis a;
     a.x = k.px[i]; a.y = k.py[i]; a.vx = k.vx[i]; a.vy = k.vy[i];
     a.heading = p.heading[i];
@@ -24,10 +21,17 @@ AgentVis makeVis(const World& w, std::uint32_t i) {
     a.sense = (p.senseR[i] - 14.0f) / 34.0f;
     a.eta = (p.eta[i] - 0.3f) / 0.7f;
     a.repThr = (p.repThresh[i] - 0.55f) / 0.4f;
-    a.pattern = g[genetics::kPattern];
-    a.hueOff = g[genetics::kHueOff] - 0.5f;
     a.age01 = std::clamp(p.age[i] / w.cfg.eco.lifespan, 0.0f, 1.0f);
     a.species = p.species[i];
+    a.circuitUnits = static_cast<std::uint16_t>(p.circuit[i].size());
+    for (std::size_t u = 0; u < p.circuit[i].size(); ++u) {
+        const std::size_t op = static_cast<std::size_t>(p.circuit[i][u].op);
+        if (op < a.unitOps.size()) ++a.unitOps[op];
+        if (u < p.circuitState[i].size())
+            a.circuitActivity += std::fabs(p.circuitState[i][u]);
+    }
+    if (a.circuitUnits != 0)
+        a.circuitActivity /= static_cast<float>(a.circuitUnits);
     a.id = p.id[i];
     return a;
 }
@@ -113,14 +117,30 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
             s.ageSec = p.age[i];
             s.generation = p.generation[i];
             s.parentId = p.parent[i];
-            const auto c = genetics::controller(&p.genome[static_cast<std::size_t>(i) * kGenomeLen], s.a.energy);
-            for (int c4 = 0; c4 < 4; ++c4) s.w[c4] = c.w[c4];
+            s.units.reserve(p.circuit[i].size());
+            for (std::size_t u = 0; u < p.circuit[i].size(); ++u) {
+                const auto& gene = p.circuit[i][u];
+                SelectedVis::Unit unit;
+                unit.op = static_cast<std::uint8_t>(gene.op);
+                unit.output = gene.output;
+                unit.sourceA = gene.sourceA;
+                unit.sourceB = gene.sourceB;
+                unit.weight = gene.weight;
+                unit.bias = gene.bias;
+                if (u < p.circuitState[i].size()) unit.value = p.circuitState[i][u];
+                s.units.push_back(unit);
+            }
+            s.outputs[0] = p.ax[i] / 1.5f;
+            s.outputs[1] = p.ay[i] / 1.5f;
+            s.outputs[2] = (p.harvestGain[i] - 1.0f) / 0.75f;
+            s.outputs[3] = p.resourceBias[i];
+            s.outputs[4] = p.protection[i];
             for (std::uint32_t j = 0; j < n; ++j) {
                 if (p.id[j] == p.preyId[i]) { s.hasPrey = true; s.preyX = out.agents[j].x; s.preyY = out.agents[j].y; }
                 if (p.id[j] == p.threatId[i]) { s.hasThreat = true; s.threatX = out.agents[j].x; s.threatY = out.agents[j].y; }
             }
-            if (s.hasThreat && s.w[2] < -0.3f) s.state = "fleeing";
-            else if (s.hasPrey && s.w[1] > 0.3f && s.a.aggr > 0.2f) s.state = "hunting";
+            if (s.hasThreat && s.outputs[4] > 0.3f) s.state = "defending";
+            else if (s.hasPrey && s.a.aggr > 0.2f) s.state = "hunting";
             else if (s.a.energy > 0.85f) s.state = "satiated";
             else if (s.a.aggr < 0.35f) s.state = "grazing";
             else s.state = "foraging";

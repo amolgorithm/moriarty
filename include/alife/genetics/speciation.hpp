@@ -1,12 +1,14 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
 #include "alife/core/agent_pool.hpp"
 #include "alife/core/rng.hpp"
 #include "alife/genetics/genome.hpp"
+#include "alife/genetics/circuit.hpp"
 #include "alife/genetics/lineage.hpp"
 
 namespace alife::genetics {
@@ -41,9 +43,12 @@ class SpeciesTable {
     static constexpr std::uint32_t kNone = 0xFFFFFFFFu;
 
     std::uint32_t addFounder(const float* genome, const char* genus, const char* epithet, float hue,
-                             std::uint32_t genusIndex, std::uint64_t tick);
+                             std::uint32_t genusIndex, std::uint64_t tick,
+                             std::span<const UnitGene> circuit = {});
     std::uint32_t classify(const float* genome, std::uint32_t parentSpecies, std::uint64_t tick,
                            CounterRng& rng);
+    std::uint32_t classify(const float* genome, std::span<const UnitGene> circuit, std::uint32_t parentSpecies,
+                           std::uint64_t tick, CounterRng& rng);
     void revive(std::uint32_t id, std::uint64_t tick);
     void refresh(const AgentPool& pool, float worldW, float worldH, std::uint64_t tick,
                  std::vector<std::string>& markers, LineageLog* lineage);
@@ -52,9 +57,10 @@ class SpeciesTable {
     const Species& at(std::uint32_t id) const { return sp_[id]; }
 
     static void project(const float* genome, float* out);
+    static void project(const float* genome, std::span<const UnitGene> circuit, float* out);
     static float distance(const float* projected, const std::array<float, kDistGenes>& ex);
 
-    float delta = 0.17f;
+    float delta = 0.07f;
 
    private:
     std::vector<Species> sp_;

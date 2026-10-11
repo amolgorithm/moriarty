@@ -18,7 +18,7 @@ namespace alife::render {
 // Level of detail by on-screen body size:
 //   < 2.2 px   soft dot in the species color, species names float over the clusters
 //   2.2 - 7 px simplified body: outline, fill, eye, tail
-//   > 7 px     full organism: flagella, cilia, spines, fangs, organelles, pigment spots
+//   > 7 px     body and computational subunits, colored by their inherited operators
 class Renderer {
    public:
     Renderer(int width, int height, const char* title);
@@ -50,6 +50,7 @@ class Renderer {
     void drawAgents(const RenderSnapshot& snap, const ViewState& vs);
     void drawBody(const AgentVis& a, Rgb color, float alpha, int lod);
     void drawSelection(const RenderSnapshot& snap);
+    void drawCircuitInspector(const RenderSnapshot& snap);
     void drawEffects();
     void drawLabels(const RenderSnapshot& snap, const ViewState& vs);
     void drawTooltip(const RenderSnapshot& snap, const ViewState& vs);

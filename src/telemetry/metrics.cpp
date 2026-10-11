@@ -10,6 +10,7 @@ void TelemetryHistory::push(const Telemetry& t) {
     entropy.push(t.shannonBits);
     species.push(static_cast<float>(t.speciesCount));
     energy.push(t.meanEnergy);
+    complexity.push(t.meanCircuitUnits);
 
     // drop markers that scrolled out of the window
     const std::uint64_t pushed = population.totalPushed();

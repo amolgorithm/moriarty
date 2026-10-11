@@ -20,10 +20,4 @@ struct Phenotype {
 
 Phenotype decode(const float* genomeRow, float vTop);
 
-// Effective cue weights for the current hunger level.
-struct Controller {
-    float w[kCueCount];
-};
-Controller controller(const float* genomeRow, float energyFrac);
-
 }  // namespace alife::genetics

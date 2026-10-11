@@ -9,7 +9,7 @@ class CameraController {
    public:
     void fit(float worldW, float worldH, int screenW, int screenH);
     void onResize(float worldW, float worldH, int screenW, int screenH);
-    void flyTo(float x, float y, float zoom, int screenW, int screenH);
+    void flyTo(float x, float y, float zoom, int screenW, int screenH, float horizontalShift = 0.0f);
     void setGoal(float x, float y) { goal_ = {x, y}; }
     void setFollow(bool on) { following_ = on; if (!on) goalActive_ = false; }
     void update(float dt);

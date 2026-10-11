@@ -1,9 +1,11 @@
 #pragma once
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 
+#include "alife/genetics/circuit.hpp"
 #include "alife/render/palette.hpp"
 
 namespace alife::render {
@@ -14,8 +16,11 @@ struct AgentVis {
     float r = 5;          // body radius, world units
     float energy = 0.5f;  // fraction of max
     float aggr = 0, def = 0, speed = 0.3f, sense = 0.3f, eta = 0.5f, repThr = 0.7f;  // all 0..1
-    float pattern = 0.5f, hueOff = 0.0f, age01 = 0;
+    float age01 = 0;
     std::uint32_t species = 0;
+    std::uint16_t circuitUnits = 0;
+    std::array<std::uint16_t, 8> unitOps{};
+    float circuitActivity = 0;
     std::uint64_t id = 0;
 };
 
@@ -48,10 +53,16 @@ struct SelectedVis {
     float energyAbs = 0, eMax = 0, ageSec = 0;
     std::uint32_t generation = 0;
     std::uint64_t parentId = 0;
-    float w[4] = {0, 0, 0, 0};  // food, prey, threat, kin cue weights right now
+    float outputs[5] = {0, 0, 0, 0, 0};  // expressed circuit action outputs
     bool hasPrey = false, hasThreat = false;
     float preyX = 0, preyY = 0, threatX = 0, threatY = 0;
     std::string state;
+    struct Unit {
+        std::uint8_t op = 0, output = 0xFF;
+        std::uint16_t sourceA = 0, sourceB = 0;
+        float weight = 0, bias = 0, value = 0;
+    };
+    std::vector<Unit> units;
 };
 
 // Everything the renderer needs for one frame. Built from the World by

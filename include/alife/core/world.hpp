@@ -63,7 +63,7 @@ struct Event {
 };
 
 struct Counters {
-    std::uint64_t births = 0, kills = 0, starved = 0, senescent = 0, reseeded = 0;
+    std::uint64_t births = 0, kills = 0, starved = 0, senescent = 0;
 };
 
 struct World {
@@ -100,7 +100,8 @@ struct World {
 
     std::pair<float, float> flowAt(float x, float y) const noexcept;
     std::uint32_t addAgent(const float* genome, float x, float y, float energy, std::uint32_t species,
-                           std::uint64_t parent, std::uint32_t generation);
+                           std::uint64_t parent, std::uint32_t generation,
+                           const genetics::Circuit& circuit = {});
     void emit(const Event& e) {
         if (events.size() < 700) events.push_back(e);
     }
@@ -108,7 +109,7 @@ struct World {
    private:
     void buildTerrain(int channel);
     void initFlow();
-    void seedFounders();
+    void seedPopulation();
 };
 
 }  // namespace alife

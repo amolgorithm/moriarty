@@ -18,7 +18,7 @@ void run(World& w, int ticks) {
 }
 }  // namespace
 
-TEST_CASE("world seeds founders and every column stays the same length") {
+TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
     World w;
     CHECK(w.pool.count() > 500);
     run(w, 600);
@@ -28,6 +28,8 @@ TEST_CASE("world seeds founders and every column stays the same length") {
     CHECK(w.pool.write().vy.size() == n);
     CHECK(w.pool.species.size() == n);
     CHECK(w.pool.genome.size() == static_cast<std::size_t>(n) * kGenomeLen);
+    CHECK(w.pool.circuit.size() == n);
+    CHECK(w.pool.circuitState.size() == n);
     CHECK(w.pool.wx.size() == n);
     CHECK(w.pool.preyId.size() == n);
 
@@ -40,6 +42,7 @@ TEST_CASE("world seeds founders and every column stays the same length") {
         CHECK(w.pool.read().py[i] < w.cfg.worldH);
         CHECK(std::isfinite(w.pool.energy[i]));
         CHECK(w.pool.energy[i] <= w.pool.eMax[i] * 1.31f);
+        CHECK(!w.pool.circuit[i].empty());
     }
 }
 

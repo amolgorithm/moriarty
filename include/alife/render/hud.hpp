@@ -17,6 +17,7 @@ struct ViewState {
     bool fields = true;   // food and heat underlay
     bool hud = true;
     bool paused = false;
+    bool unitView = false;
     float speed = 12.0f;  // sim seconds per real second (target)
     float simRate = 0.0f; // measured, set by the app
     std::uint64_t selected = 0;      // organism id, 0 = none

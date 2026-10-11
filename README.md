@@ -1,8 +1,11 @@
 # moriarty
 
-Open-ended evolution artificial life engine in C++20. Organisms live on a toroidal world under an
-energy budget, evolve through endogenous selection (no fitness function), and are tracked with
-information-theoretic metrics. The raylib viewer runs the real simulation.
+Artificial-life and digital-evolution experiment in C++20. Organisms compete on a toroidal,
+resource-limited world. Their inherited computational circuits can change in length, wiring, and
+operation through mutation and recombination; unit duplication can preserve and elaborate an
+existing computation, while execution and construction consume energy.
+This is a bounded experimental model, not a claim of literal infinite complexity or biological
+thermodynamic accuracy.
 
 ## Build and run
 
@@ -17,113 +20,106 @@ cmake --build --preset dev --config Release
 Windows (Visual Studio generator): `build\dev\apps\Release\moriarty_viewer.exe`
 Linux and macOS: `./build/dev/apps/moriarty_viewer`
 
-Use a Release or RelWithDebInfo build to watch the sim. A plain Debug build is many times slower.
-Presets: `dev` (RelWithDebInfo), `debug`, `release` (+LTO, benchmarks), `asan`, `tsan` (no viewer).
-Other options: `-DALIFE_BUILD_VIEWER=OFF`, `-DALIFE_NATIVE_ARCH=ON`.
+Use a Release or RelWithDebInfo build to watch the sim. Presets: `dev`, `debug`, `release`, `asan`,
+`tsan` (no viewer). Other options: `-DALIFE_BUILD_VIEWER=OFF`, `-DALIFE_NATIVE_ARCH=ON`.
 
 ```
-moriarty_headless 1200 60     # simulate 1200 s, report every 60 s, list surviving species
-moriarty_viewer --warm 300    # simulate 300 s first so the charts have history
-moriarty_viewer --shot a.png --zoom 4 --frames 120   # render, save a screenshot, exit
+moriarty_headless 1200 60
+moriarty_viewer --warm 300
+moriarty_viewer --shot a.png --zoom 4 --frames 120
 ```
 
-On Linux raylib needs `libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev`.
+## Reading and controlling the viewer
 
-## Reading the viewer
+Zoom out for species clusters; zoom in for individual organisms. Colors encode lineage, brightness
+encodes energy, and the species list and food web summarize current ecological interactions. The
+world is 1728 x 1152 units; wheel zooms toward the cursor and dragging pans.
 
-Zoom out to see species as colored clusters with names. Zoom in and bodies turn into organisms.
-
-- **Color is lineage.** Each species has its own color. Daughter species get a color near their
-  parent's, and a name in the same genus, so clades are easy to spot.
-- **Shape is genome.** Size, spines (defense), fangs and a streamlined body (aggression and speed),
-  number of flagella (speed), eye size (sense radius), cilia on grazers, pigment spots.
-- **Fill brightness is energy.** Dim means hungry, bright means well fed.
-- **Interactions.** Red ring and a line mark a kill, a small ring in the parent's color marks a birth.
-  The panel top right is a live food web: arrows go from hunter to prey, thicker means more recent kills.
-- **Underlay.** Sage glow is fine food (small grazers), amber is coarse food (large grazers), rust is
-  waste heat. The drifting specks show the stochastic current.
-
-| input | action |
+| Input | Action |
 |---|---|
-| left click | select organism (inspector shows traits and live steering gains) |
-| enter | follow the selected organism |
-| tab / shift+tab, click a species row | fly to a species, dim everything else |
-| esc | clear selection and focus |
-| drag, wheel | pan, zoom toward cursor |
-| f | fit world |
-| space | pause |
-| up / down | sim speed |
-| 1 / 2 | color by species / by energy |
-| w, g, h | toggle wakes, food and heat underlay, HUD |
+| left click organism | select and follow it |
+| Enter | toggle following |
+| U | open/close the selected organism's computational-unit microscope |
+| Tab / Shift+Tab, click a species row | focus a species |
+| Esc | clear selection and focus |
+| drag, wheel | pan and zoom |
+| F | fit world |
+| Space | pause |
+| Up / Down | simulation speed |
+| 1 / 2 | color by species / energy |
+| W, G, H | toggle wakes, fields, HUD |
 
-Drop a TTF at `assets/fonts/hud.ttf` to replace the default HUD font.
+## Model
 
-## The model
+All simulation state and dynamics are in `alife_core`; the viewer renders snapshots of the real
+simulation. Runs are deterministic for a given seed.
 
-Everything below is implemented in `alife_core`, headless, deterministic for a given seed.
+**Time scales**
+- Micro, 0.05 s: Langevin motion, soft-body repulsion, stochastic currents, and wander.
+- Meso, 0.25 s: local sensing, steering, resource uptake, predation, metabolic costs, death, and
+  reproduction; the environment also advances.
+- Macro, 5 s: species bookkeeping and interaction-history decay.
 
-**Three time scales** (`sim/scheduler.cpp`)
-- micro, every 0.05 s: Langevin step per organism. Controller command, an Ornstein-Uhlenbeck wander
-  force (colored noise, 2 s correlation), soft body repulsion, white noise, and passive advection by a
-  stochastic divergence-free current.
-- meso, every 0.25 s: sensing and steering, grazing, predation, upkeep, death, reproduction, and the
-  environment update.
-- macro, every 5 s: species bookkeeping, predation-matrix decay, recolonization.
+**Heritable substrate.** Organisms inherit 9 scalar parameters and a variable-length,
+topologically ordered circuit (`genetics/circuit.hpp`). Each unit combines earlier unit outputs or
+local sensory inputs using generic arithmetic/nonlinear operators. Circuit outputs connect to the
+body's physical interfaces: motion, uptake, resource allocation, and defense. Unit duplication,
+insertion, deletion, rewiring, operator and parameter mutations, and recombination are inherited by
+offspring.
+There are no hand-authored ecological founder archetypes in the live simulation. The initial
+population descends from one minimal four-unit ancestor program with continuous heritable variation;
+additional internal computations must arise through mutation or recombination.
 
-**Genome** (24 genes in [0,1], `genetics/genome.hpp`): metabolic efficiency, sense radius, speed,
-aggression, reproduction threshold, mutation rate (self-adaptive), body size, defense, two cosmetic
-traits, and a Braitenberg-style controller. The controller has four cues (food gradient, prey,
-threat, kin), each with a gain, a bias and a hunger slope, so behavior such as fleeing or flocking
-is evolvable and readable.
+Circuits are deterministic bounded DAGs: connections address a sensory input or an earlier unit,
+and each organism currently has a maximum of 96 units. Execution adds metabolic upkeep; inherited
+units have an embodied construction-energy cost. The microscope lists every unit, its two sources,
+operator, parameters, current value, and output interface. The live "mean computational units"
+chart measures average circuit length.
 
-**Energy**
-- Upkeep scales with mass^0.75, plus sensing (radius squared), movement (speed squared), armor,
-  weaponry and crowding stress. Higher efficiency costs more upkeep, so it is a real trade-off.
-- Two food fields with different terrain. Body size decides which one an organism can eat well, which
-  favors coexisting small and large grazers.
-- Predation has handling time, lunge cost, and success that depends on speed, size and the prey's armor.
-- Waste heat diffuses and suppresses regrowth, a simple niche-construction loop. Corpses recycle
-  nutrients into the food fields.
-- Host-specific disease: mortality rises with the square of a species' share, a kill-the-winner
-  mechanism that keeps one species from taking over.
+The fixed scalar traits and actuator/sensor interfaces remain part of this prototype. They are
+deliberate limits on the simulated substrate, not an implementation of an unconstrained computer.
+Likewise, arbitrary units of energy are an abstract resource budget, not chemical stoichiometry or a
+validated physical thermodynamic model.
 
-**Noise that is not a clean oscillator**
-- Seasons: nominal period with a random walk in phase, so cycles are irregular.
-- Resource weather: slow Ornstein-Uhlenbeck drift of carrying capacity.
-- Blights and blooms: Poisson shot noise, regional, fading in and out.
-- Currents: Fourier modes with OU amplitudes and drifting phases.
-- Individual metabolic noise (log-normal) and Brownian jitter in movement.
+**Ecology and selection.**
+- Two spatial food fields regrow under variable conditions; organisms consume shared local stocks.
+- Upkeep pays for body mass, efficiency, sensing, movement, defense, predation, crowding, and circuit
+  size. Resource scarcity can cause starvation; corpses return part of their resources.
+- Predation has a handling interval, attack cost, and stochastic outcomes affected by body and
+  evolved response.
+- Environmental seasons, weather, disturbances, and currents create changing local conditions.
+- Reproduction transfers energy and pays offspring construction costs. No fitness score, immigration,
+  or automatic population rescue is applied by the macro step.
 
-**Evolution and speciation**
-- Reproduction is asexual or, with a nearby conspecific, uniform crossover. Gaussian point mutations
-  with rare large jumps, rate set by the organism's own mutation gene.
-- Species are clusters in trait space (`genetics/speciation.cpp`). A newborn joins its parent's species
-  when close to its exemplar, otherwise the nearest species within a threshold, otherwise it founds a
-  new species. Exemplars follow the running mean of the members.
-- Roles (grazer, omnivore, predator) are derived from mean aggression, not assigned.
-- Immigration: now and then a small group of a locally rare founder lineage arrives from outside, so
-  the arena behaves like one patch of a larger metacommunity.
+**Evolution and speciation.** Asexual reproduction or local conspecific recombination transfers
+scalar genes and circuits. Scalar mutation rates are heritable; circuit mutations change instruction
+content and structure. Species are clusters in both scalar-trait and circuit-architecture space.
+Lineages survive, branch, or go extinct under their local ecological outcomes; the simulation does
+not guarantee a species boom or monotonic complexity growth.
+
+## Research context and limitations
+
+The implementation draws on, but does not reproduce, these research systems and results:
+
+- Ofria & Wilke (2004), [Avida: A Software Platform for Research in Computational Evolutionary Biology](https://doi.org/10.1162/106454604773563612), *Artificial Life* 10(2):191–229. Avida motivates executable heritable digital organisms and controlled experiments. Task-reward environments are explicit selection design, not proof of unscripted ecology.
+- Lenski, Ofria, Pennock & Adami (2003), [The evolutionary origin of complex features](https://doi.org/10.1038/nature01568), *Nature* 423:139–144. Digital organisms evolved coordinated logic functions through heritable instruction changes under defined selection conditions.
+- Clark, Hickinbotham & Stepney (2017), [Semantic closure demonstrated by the evolution of a universal constructor architecture in an artificial chemistry](https://doi.org/10.1098/rsif.2016.1033), *Journal of the Royal Society Interface* 14:20161033. Stringmol illustrates recursively encoded copying and construction; this project does not yet implement semantic closure or self-constructing organisms.
+- Taylor et al. (2016), [Open-Ended Evolution: Perspectives from the OEE Workshop in York](https://doi.org/10.1162/artl_a_00210), *Artificial Life* 22(3):408–423. OEE has multiple definitions and requires evidence of sustained novelty and complexity, not just a flexible mechanism.
+
+This finite prototype does not prove open-ended evolution, literal infinity, or biological realism.
+Circuit length alone is only one complexity proxy. Credible OEE experiments still need replicated
+seeds, long runs, archived lineages, resource and neutral controls, and multiple measures of adaptive
+novelty and complexity. The deeper recursive-constructor approach described by Stringmol remains
+future work.
 
 ## Layout
 
 ```
-include/alife/   public headers, one folder per module
-src/             implementations, mirrors include/
+include/alife/   public headers
+src/             simulation, genetics, math, telemetry, renderer
 apps/viewer      raylib frontend
 apps/headless_runner
-shaders/         GLSL for the phase 6 instanced renderer
-tests/ bench/    doctest, Google Benchmark
-cmake/           compiler options, dependencies
+tests/           doctest
 ```
 
 Targets: `alife_core` (no graphics) -> `alife_telemetry` -> `alife_render`.
-
-## Roadmap
-
-| phase | scope |
-|---|---|
-| 0-3 | scaffold, SoA physics and grid, thermodynamics, genetics (done, single thread) |
-| 4 | concurrency: thread pool, phase barriers, async macro worker |
-| 5 | lineage log, OEE metrics (activity statistics, MODES) |
-| 6 | renderer: instanced agents, GPU effects |
-| 7 | transfer entropy, replicator fitting, mean-field, 3D |

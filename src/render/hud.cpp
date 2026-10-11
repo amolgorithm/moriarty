@@ -229,29 +229,32 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     }
 
     // ---------------- right bottom: charts ----------------
-    const float cw = 242, ch = 62, pad = 18;
-    const Rectangle cp{static_cast<float>(sw) - M - cw - 2 * pad, static_cast<float>(sh) - M - 3 * ch - 4 * pad, cw + 2 * pad,
-                       3 * ch + 4 * pad};
+    const float cw = 242, ch = 48, pad = 13;
+    const Rectangle cp{static_cast<float>(sw) - M - cw - 2 * pad, static_cast<float>(sh) - M - 4 * ch - 5 * pad, cw + 2 * pad,
+                       4 * ch + 5 * pad};
     panel(cp);
     panels_.push_back(cp);
-    char v0[32], v1[32], v2[32];
+    char v0[32], v1[32], v2[32], v3[32];
     std::snprintf(v0, sizeof v0, "%u", t.population);
     std::snprintf(v1, sizeof v1, "%.2f bits", static_cast<double>(t.shannonBits));
     std::snprintf(v2, sizeof v2, "%u", t.speciesCount);
+    std::snprintf(v3, sizeof v3, "%.1f", static_cast<double>(t.meanCircuitUnits));
     chart(font, {cp.x + pad, cp.y + pad, cw, ch}, {"population", hist.population, col(theme::accent), v0, false, true}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 2 * pad + ch, cw, ch}, {"diversity", hist.entropy, col(speciesColor(2)), v1, true, false}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 3 * pad + 2 * ch, cw, ch}, {"species", hist.species, col(speciesColor(3)), v2, true, false}, hist.markers);
+    chart(font, {cp.x + pad, cp.y + 4 * pad + 3 * ch, cw, ch},
+          {"mean computational units", hist.complexity, col({154, 174, 124}), v3, false, false}, hist.markers);
 
     // ---------------- bottom left: inspector + hints ----------------
     std::snprintf(buf, sizeof buf, "%d fps    sim x%.1f (target x%.0f)", fps, static_cast<double>(vs.simRate), static_cast<double>(vs.speed));
     label(font, buf, M, static_cast<float>(sh) - 40, 12, col(theme::textDim));
-    label(font, "space pause  |  1/2 color  |  w wakes  |  g fields  |  h hud  |  f fit  |  tab species  |  click organism  |  enter follow  |  up/down speed",
+    label(font, "space pause  |  1/2 color  |  w wakes  |  g fields  |  h hud  |  f fit  |  tab species  |  click follows  |  u subunits  |  up/down speed",
           M, static_cast<float>(sh) - 24, 11, col(theme::textDim, 150));
 
     if (snap.selected.valid) {
         const SelectedVis& s = snap.selected;
         const SpeciesVis* sv = snap.findSpecies(s.a.species);
-        const Rectangle ip{M, static_cast<float>(sh) - 64 - 292, 270, 292};
+        const Rectangle ip{M, static_cast<float>(sh) - 64 - 350, 270, 350};
         panel(ip);
         panels_.push_back(ip);
         if (sv) {
@@ -274,11 +277,18 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         bar(font, "aggression", s.a.aggr, x, y, w, tc); y += 16;
         bar(font, "defense", s.a.def, x, y, w, tc); y += 16;
         bar(font, "efficiency", s.a.eta, x, y, w, tc); y += 24;
-        label(font, "steering gains (right now)", x, y, 11, col(theme::textDim, 190)); y += 16;
-        signedBar(font, "food", s.w[0], x, y, w); y += 16;
-        signedBar(font, "prey", s.w[1], x, y, w); y += 16;
-        signedBar(font, "threat", s.w[2], x, y, w); y += 16;
-        signedBar(font, "kin", s.w[3], x, y, w);
+        label(font, "circuit outputs (right now)", x, y, 11, col(theme::textDim, 190)); y += 16;
+        signedBar(font, "drive x", s.outputs[0], x, y, w); y += 16;
+        signedBar(font, "drive y", s.outputs[1], x, y, w); y += 16;
+        signedBar(font, "uptake", s.outputs[2], x, y, w); y += 16;
+        signedBar(font, "resource", s.outputs[3], x, y, w); y += 16;
+        signedBar(font, "defense", s.outputs[4], x, y, w);
+        std::snprintf(buf, sizeof buf, "%zu computational units  |  U microscope",
+                      s.units.size());
+        label(font, buf, x, ip.y + ip.height - 14, 10, col(theme::accent, 210));
+        std::snprintf(buf, sizeof buf, "%zu computational units  |  U microscope  |  click follows",
+                      s.units.size());
+        label(font, buf, x, ip.y + ip.height - 14, 10, col(theme::accent, 210));
     }
 }
 

@@ -18,4 +18,68 @@ void crossover(const float* a, const float* b, float* out, CounterRng& rng) {
     for (std::size_t i = 0; i < kGenomeLen; ++i) out[i] = rng.uniform() < 0.5f ? a[i] : b[i];
 }
 
+void mutateCircuit(Circuit& circuit, float rate, CounterRng& rng) {
+    if (circuit.empty()) circuit = makeSeedCircuit();
+    for (auto& gene : circuit) {
+        if (rng.uniform() < rate * 0.55f)
+            gene.op = static_cast<UnitOp>(rng.next() % static_cast<std::uint64_t>(UnitOp::Count));
+        if (rng.uniform() < rate * 0.55f)
+            gene.sourceA = static_cast<std::uint16_t>(rng.next() % (kCircuitInputs + (&gene - circuit.data())));
+        if (rng.uniform() < rate * 0.55f)
+            gene.sourceB = static_cast<std::uint16_t>(rng.next() % (kCircuitInputs + (&gene - circuit.data())));
+        if (rng.uniform() < rate * 0.25f)
+            gene.output = rng.uniform() < 0.5f ? kNoCircuitOutput :
+                          static_cast<std::uint8_t>(rng.next() % kCircuitOutputs);
+        gene.weight = std::clamp(gene.weight + rate * rng.normal(), -2.0f, 2.0f);
+        gene.bias = std::clamp(gene.bias + rate * 0.5f * rng.normal(), -1.0f, 1.0f);
+    }
+
+    if (circuit.size() < kMaxCircuitUnits && rng.uniform() < 0.05f + rate * 0.9f) {
+        UnitGene gene;
+        if (!circuit.empty() && rng.uniform() < 0.7f) {
+            gene = circuit[static_cast<std::size_t>(rng.next() % circuit.size())];
+        } else {
+            gene.op = static_cast<UnitOp>(rng.next() % static_cast<std::uint64_t>(UnitOp::Count));
+            const std::size_t sourceCount = kCircuitInputs + circuit.size();
+            gene.sourceA = static_cast<std::uint16_t>(rng.next() % sourceCount);
+            gene.sourceB = static_cast<std::uint16_t>(rng.next() % sourceCount);
+            gene.output = rng.uniform() < 0.65f ? static_cast<std::uint8_t>(rng.next() % kCircuitOutputs)
+                                               : kNoCircuitOutput;
+            gene.weight = (rng.uniform() * 2.0f - 1.0f) * 1.5f;
+            gene.bias = (rng.uniform() * 2.0f - 1.0f) * 0.35f;
+        }
+        circuit.push_back(gene);
+    } else if (circuit.size() > 3 && rng.uniform() < 0.008f + rate * 0.25f) {
+        const std::size_t removed = static_cast<std::size_t>(rng.next() % circuit.size());
+        const std::size_t removedSource = kCircuitInputs + removed;
+        for (std::size_t i = removed + 1; i < circuit.size(); ++i) {
+            auto remap = [&](std::uint16_t& source) {
+                if (source == removedSource)
+                    source = static_cast<std::uint16_t>(rng.next() % kCircuitInputs);
+                else if (source > removedSource)
+                    --source;
+            };
+            remap(circuit[i].sourceA);
+            remap(circuit[i].sourceB);
+        }
+        circuit.erase(circuit.begin() + static_cast<std::ptrdiff_t>(removed));
+    }
+    repairCircuit(circuit, rng);
+}
+
+Circuit crossoverCircuit(std::span<const UnitGene> a, std::span<const UnitGene> b, CounterRng& rng) {
+    if (a.empty()) return Circuit(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(std::min(b.size(), kMaxCircuitUnits)));
+    if (b.empty()) return Circuit(a.begin(), a.begin() + static_cast<std::ptrdiff_t>(std::min(a.size(), kMaxCircuitUnits)));
+
+    const std::size_t shared = std::min(a.size(), b.size());
+    Circuit child;
+    child.reserve(std::min(std::max(a.size(), b.size()), kMaxCircuitUnits));
+    for (std::size_t i = 0; i < shared && child.size() < kMaxCircuitUnits; ++i)
+        child.push_back(rng.uniform() < 0.5f ? a[i] : b[i]);
+    const auto tail = rng.uniform() < 0.5f ? a : b;
+    for (std::size_t i = shared; i < tail.size() && child.size() < kMaxCircuitUnits; ++i) child.push_back(tail[i]);
+    repairCircuit(child, rng);
+    return child;
+}
+
 }  // namespace alife::genetics

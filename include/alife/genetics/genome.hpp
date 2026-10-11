@@ -12,26 +12,14 @@ enum Gene : std::size_t {
     kRepThr,       // reproduction threshold, fraction of max energy
     kMutRate,      // self-adaptive mutation rate
     kSize,         // body radius
-    kDefense,      // armor / spines
-    kHueOff,       // pigment variation (heritable, cosmetic)
-    kPattern,      // body spotting (heritable, cosmetic)
-    kCtrlBegin = 10,
-    kExplore = 22,
-    kSpare = 23
+    kDefense,     // defense investment
+    kExplore = 8
 };
 
-// Braitenberg-style sensorimotor controller: four cues, each steers the body with
-// a gain that depends on hunger. Per cue: gain, bias, hunger slope.
-enum Cue : int { kFood = 0, kPrey, kThreat, kKin, kCueCount };
-
-constexpr std::size_t cueGain(int c) { return kCtrlBegin + 3 * static_cast<std::size_t>(c); }
-constexpr std::size_t cueBias(int c) { return cueGain(c) + 1; }
-constexpr std::size_t cueSlope(int c) { return cueGain(c) + 2; }
-
-// Genes that count toward species distance.
-inline constexpr std::size_t kDistGenes = 11;
-inline constexpr std::size_t kDistIndex[kDistGenes] = {
-    kEta, kSense, kSpeed, kAggr, kRepThr, kSize, kDefense,
-    cueGain(0), cueGain(1), cueGain(2), cueGain(3)};
+// Species distance includes expressed program architecture as well as scalar traits.
+inline constexpr std::size_t kDistTraitGenes = 8;
+inline constexpr std::size_t kDistGenes = kDistTraitGenes + 10;
+inline constexpr std::size_t kDistIndex[kDistTraitGenes] = {
+    kEta, kSense, kSpeed, kAggr, kRepThr, kSize, kDefense, kExplore};
 
 }  // namespace alife::genetics

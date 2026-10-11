@@ -3,6 +3,7 @@
 
 #include "alife/core/aligned_alloc.hpp"
 #include "alife/core/config.hpp"
+#include "alife/genetics/circuit.hpp"
 
 namespace alife {
 
@@ -23,11 +24,14 @@ struct AgentPool {
     avec<float> radius, mass, defense, eMax, explore;
     avec<float> wx, wy;      // OU wander state (colored noise)
     avec<float> ax, ay;      // steering command from the controller
+    avec<float> harvestGain, resourceBias, protection;
     avec<float> heading;     // smoothed facing, for rendering
     avec<std::uint32_t> cell, species, generation;
 
     // cold: evo and telemetry only
     avec<float> genome;  // count * kGenomeLen, row-major
+    std::vector<genetics::Circuit> circuit;
+    std::vector<std::vector<float>> circuitState;
     avec<std::uint64_t> id, parent, birthTick, preyId, threatId;
 
     std::uint64_t nextId = 1;

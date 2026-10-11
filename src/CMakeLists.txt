@@ -9,7 +9,7 @@ add_library(alife_core STATIC
   sim/meso.cpp
   sim/evo.cpp
   sim/scheduler.cpp
-  genetics/archetypes.cpp
+  genetics/circuit.cpp
   genetics/gpm.cpp
   genetics/operators.cpp
   genetics/speciation.cpp

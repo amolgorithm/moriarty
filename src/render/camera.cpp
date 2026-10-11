@@ -23,10 +23,10 @@ void CameraController::onResize(float ww, float wh, int sw, int sh) {
     }
 }
 
-void CameraController::flyTo(float x, float y, float zoom, int sw, int sh) {
+void CameraController::flyTo(float x, float y, float zoom, int sw, int sh, float horizontalShift) {
     const Vector2 c{static_cast<float>(sw) * 0.5f, static_cast<float>(sh) * 0.5f};
     cam_.target = GetScreenToWorld2D(c, cam_);  // keep the view steady while we re-anchor
-    cam_.offset = c;
+    cam_.offset = {c.x - horizontalShift, c.y};
     goal_ = {x, y};
     targetZoom_ = std::clamp(zoom, 0.05f, 40.0f);
     goalActive_ = true;

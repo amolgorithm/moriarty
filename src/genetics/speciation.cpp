@@ -26,8 +26,30 @@ float clampf(float v, float lo, float hi) { return std::min(hi, std::max(lo, v))
 
 }  // namespace
 
+void SpeciesTable::project(const float* g, std::span<const UnitGene> circuit, float* out) {
+    std::fill(out, out + kDistGenes, 0.0f);
+    for (std::size_t i = 0; i < kDistTraitGenes; ++i) out[i] = g[kDistIndex[i]];
+    for (const UnitGene& unit : circuit) {
+        const auto op = static_cast<std::size_t>(unit.op);
+        if (op < 8) out[kDistTraitGenes + op] += 1.0f;
+    }
+    if (!circuit.empty()) {
+        for (std::size_t i = 0; i < 8; ++i)
+            out[kDistTraitGenes + i] /= static_cast<float>(circuit.size());
+        out[kDistTraitGenes + 8] = static_cast<float>(
+            std::log2(static_cast<double>(circuit.size()) + 1.0) /
+            std::log2(static_cast<double>(kMaxCircuitUnits) + 1.0));
+        double connected = 0.0;
+        for (const UnitGene& unit : circuit) {
+            connected += unit.sourceA >= kCircuitInputs ? 1.0 : 0.0;
+            connected += unit.sourceB >= kCircuitInputs ? 1.0 : 0.0;
+        }
+        out[kDistTraitGenes + 9] = static_cast<float>(connected / (2.0 * static_cast<double>(circuit.size())));
+    }
+}
+
 void SpeciesTable::project(const float* g, float* out) {
-    for (std::size_t i = 0; i < kDistGenes; ++i) out[i] = g[kDistIndex[i]];
+    project(g, {}, out);
 }
 
 float SpeciesTable::distance(const float* p, const std::array<float, kDistGenes>& ex) {
@@ -40,14 +62,15 @@ float SpeciesTable::distance(const float* p, const std::array<float, kDistGenes>
 }
 
 std::uint32_t SpeciesTable::addFounder(const float* genome, const char* genus, const char* epithet,
-                                       float hue, std::uint32_t genusIndex, std::uint64_t tick) {
+                                       float hue, std::uint32_t genusIndex, std::uint64_t tick,
+                                       std::span<const UnitGene> circuit) {
     Species s;
     s.id = static_cast<std::uint32_t>(sp_.size());
     s.genus = genusIndex;
     s.genusName = genus;
     s.epithet = epithet;
     s.hue = hue; s.sat = 0.58f; s.val = 0.88f;
-    project(genome, s.exemplar.data());
+    project(genome, circuit, s.exemplar.data());
     s.founded = tick;
     s.announced = true;
     sp_.push_back(std::move(s));
@@ -56,8 +79,13 @@ std::uint32_t SpeciesTable::addFounder(const float* genome, const char* genus, c
 
 std::uint32_t SpeciesTable::classify(const float* genome, std::uint32_t parentSp, std::uint64_t tick,
                                      CounterRng& rng) {
+    return classify(genome, {}, parentSp, tick, rng);
+}
+
+std::uint32_t SpeciesTable::classify(const float* genome, std::span<const UnitGene> circuit,
+                                     std::uint32_t parentSp, std::uint64_t tick, CounterRng& rng) {
     float p[kDistGenes];
-    project(genome, p);
+    project(genome, circuit, p);
 
     if (parentSp != kNone && parentSp < sp_.size() && sp_[parentSp].alive &&
         distance(p, sp_[parentSp].exemplar) <= delta)
@@ -118,7 +146,10 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         Species& s = sp_[id];
         ++s.count;
         const float* g = &pool.genome[static_cast<std::size_t>(i) * kGenomeLen];
-        for (std::size_t d = 0; d < kDistGenes; ++d) sum[id][d] += g[kDistIndex[d]];
+        for (std::size_t d = 0; d < kDistTraitGenes; ++d) sum[id][d] += g[kDistIndex[d]];
+        float signature[kDistGenes];
+        project(g, pool.circuit[i], signature);
+        for (std::size_t d = kDistTraitGenes; d < kDistGenes; ++d) sum[id][d] += signature[d];
         s.meanAggr += pool.aggression[i];
         s.meanDef += pool.defense[i];
         s.meanSize += pool.radius[i];

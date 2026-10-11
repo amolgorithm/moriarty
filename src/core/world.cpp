@@ -3,8 +3,9 @@
 #include <algorithm>
 #include <cmath>
 
-#include "alife/genetics/archetypes.hpp"
+#include "alife/genetics/genome.hpp"
 #include "alife/genetics/gpm.hpp"
+#include "alife/genetics/operators.hpp"
 
 namespace alife {
 namespace {
@@ -23,7 +24,7 @@ World::World(const SimConfig& c) : cfg(c), grid(c.worldW, c.worldH, c.cellSize) 
     buildTerrain(0);
     buildTerrain(1);
     initFlow();
-    seedFounders();
+    seedPopulation();
 
     CounterRng r(cfg.seed, 0, 0x7AC);
     tracerX.resize(700);
@@ -93,9 +94,16 @@ std::pair<float, float> World::flowAt(float x, float y) const noexcept {
 }
 
 std::uint32_t World::addAgent(const float* genome, float x, float y, float energy, std::uint32_t sp,
-                              std::uint64_t parentId, std::uint32_t gen) {
+                              std::uint64_t parentId, std::uint32_t gen,
+                              const genetics::Circuit& inheritedCircuit) {
     const std::uint32_t i = pool.spawn(x, y);
     std::copy(genome, genome + kGenomeLen, pool.genome.begin() + static_cast<std::ptrdiff_t>(i) * static_cast<std::ptrdiff_t>(kGenomeLen));
+    if (inheritedCircuit.empty()) {
+        pool.circuit[i] = genetics::makeSeedCircuit();
+    } else {
+        pool.circuit[i] = inheritedCircuit;
+    }
+    pool.circuitState[i].assign(pool.circuit[i].size(), 0.0f);
     const auto ph = genetics::decode(genome, cfg.eco.vTop);
     pool.eta[i] = ph.eta; pool.senseR[i] = ph.senseR; pool.vMax[i] = ph.vMax;
     pool.aggression[i] = ph.aggression; pool.repThresh[i] = ph.repThresh;
@@ -109,34 +117,29 @@ std::uint32_t World::addAgent(const float* genome, float x, float y, float energ
     return i;
 }
 
-void World::seedFounders() {
-    std::uint32_t founder[genetics::kArchetypes];
-    float base[genetics::kArchetypes][kGenomeLen];
-    for (int a = 0; a < genetics::kArchetypes; ++a) {
-        genetics::archetypeGenome(a, base[a]);
-        founder[a] = species.addFounder(base[a], genetics::archetypeGenus(a), genetics::archetypeEpithet(a),
-                                        genetics::archetypeHue(a), static_cast<std::uint32_t>(a), 0);
-    }
-    std::uint64_t serial = 0;
-    for (int a = 0; a < genetics::kArchetypes; ++a) {
-        // three colonies per founder lineage
-        CounterRng c(cfg.seed, 0, 0xC010 + static_cast<std::uint64_t>(a));
-        float cx[3], cy[3];
-        for (int k = 0; k < 3; ++k) { cx[k] = c.uniform() * cfg.worldW; cy[k] = c.uniform() * cfg.worldH; }
-        const int cnt = genetics::archetypeCount(a);
-        for (int i = 0; i < cnt; ++i, ++serial) {
-            CounterRng r(cfg.seed, 0, 0x1000 + serial);
-            float g[kGenomeLen];
-            for (std::size_t k = 0; k < kGenomeLen; ++k)
-                g[k] = std::clamp(base[a][k] + 0.03f * r.normal(), 0.0f, 1.0f);
-            const int colony = static_cast<int>(r.next() % 3);
-            const float x = wrap(cx[colony] + 90.0f * r.normal(), cfg.worldW);
-            const float y = wrap(cy[colony] + 90.0f * r.normal(), cfg.worldH);
-            const auto ph = genetics::decode(g, cfg.eco.vTop);
-            const std::uint32_t idx = addAgent(g, x, y, ph.eMax * (0.4f + 0.4f * r.uniform()), founder[a], 0, 0);
-            pool.age[idx] = r.uniform() * 70.0f;
-            pool.heading[idx] = r.uniform() * kTwoPi;
-        }
+void World::seedPopulation() {
+    float base[kGenomeLen];
+    std::fill(base, base + kGenomeLen, 0.5f);
+    base[genetics::kMutRate] = 0.45f;
+    const genetics::Circuit ancestorCircuit = genetics::makeSeedCircuit();
+    const std::uint32_t ancestor = species.addFounder(base, "Vita", "communis", 30.0f, 0, 0, ancestorCircuit);
+
+    for (std::size_t i = 0; i < cfg.initialAgents; ++i) {
+        CounterRng rng(cfg.seed, 0, 0x1000 + i);
+        float g[kGenomeLen];
+        for (std::size_t k = 0; k < kGenomeLen; ++k)
+            g[k] = std::clamp(base[k] + 0.12f * rng.normal(), 0.0f, 1.0f);
+        g[genetics::kMutRate] = std::clamp(0.45f + 0.12f * rng.normal(), 0.05f, 1.0f);
+
+        const float x = rng.uniform() * cfg.worldW;
+        const float y = rng.uniform() * cfg.worldH;
+        const auto ph = genetics::decode(g, cfg.eco.vTop);
+        genetics::Circuit circuit = ancestorCircuit;
+        genetics::mutateCircuit(circuit, 0.08f, rng);
+        const std::uint32_t idx = addAgent(g, x, y, ph.eMax * (0.4f + 0.4f * rng.uniform()),
+                                           ancestor, 0, 0, circuit);
+        pool.age[idx] = rng.uniform() * 35.0f;
+        pool.heading[idx] = rng.uniform() * kTwoPi;
     }
     grid.rebuild(pool.read().px.data(), pool.read().py.data(), pool.count());
 }
