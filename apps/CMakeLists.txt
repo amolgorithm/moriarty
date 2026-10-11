@@ -1,7 +1,6 @@
 if(ALIFE_BUILD_VIEWER)
   add_executable(moriarty_viewer
-    viewer/main.cpp
-    viewer/demo_source.cpp)
+    viewer/main.cpp)
   target_link_libraries(moriarty_viewer PRIVATE alife_render alife_options)
 endif()
 

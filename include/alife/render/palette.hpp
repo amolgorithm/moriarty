@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace alife::render {
@@ -25,6 +26,23 @@ inline constexpr Rgb panel{36, 31, 27};
 inline constexpr Rgb accent{214, 152, 72};
 inline constexpr Rgb accentSoft{176, 108, 66};
 }  // namespace theme
+
+// HSV (degrees, 0..1, 0..1) to RGB
+inline Rgb hsv(float h, float s, float v) {
+    h = h - 360.0f * std::floor(h / 360.0f);
+    const float c = v * s, hp = h / 60.0f;
+    const float x = c * (1.0f - std::fabs(std::fmod(hp, 2.0f) - 1.0f));
+    float r = 0, g = 0, b = 0;
+    if (hp < 1) { r = c; g = x; }
+    else if (hp < 2) { r = x; g = c; }
+    else if (hp < 3) { g = c; b = x; }
+    else if (hp < 4) { g = x; b = c; }
+    else if (hp < 5) { r = x; b = c; }
+    else { r = c; b = x; }
+    const float m = v - c;
+    auto q = [m](float k) { return static_cast<std::uint8_t>(std::clamp((k + m) * 255.0f + 0.5f, 0.0f, 255.0f)); };
+    return {q(r), q(g), q(b)};
+}
 
 inline Rgb speciesColor(std::uint32_t id) {
     static constexpr Rgb kBase[] = {

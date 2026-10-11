@@ -1,0 +1,132 @@
+#include "alife/render/snapshot_builder.hpp"
+
+#include <algorithm>
+#include <cmath>
+
+#include "alife/genetics/gpm.hpp"
+
+namespace alife::render {
+namespace {
+
+AgentVis makeVis(const World& w, std::uint32_t i) {
+    const auto& p = w.pool;
+    const auto& k = p.read();
+    const float vTop = w.cfg.eco.vTop;
+    const float* g = &p.genome[static_cast<std::size_t>(i) * kGenomeLen];
+    AgentVis a;
+    a.x = k.px[i]; a.y = k.py[i]; a.vx = k.vx[i]; a.vy = k.vy[i];
+    a.heading = p.heading[i];
+    a.r = p.radius[i];
+    a.energy = std::clamp(p.energy[i] / p.eMax[i], 0.0f, 1.0f);
+    a.aggr = p.aggression[i];
+    a.def = p.defense[i];
+    a.speed = (p.vMax[i] - 8.0f) / (vTop - 8.0f);
+    a.sense = (p.senseR[i] - 14.0f) / 34.0f;
+    a.eta = (p.eta[i] - 0.3f) / 0.7f;
+    a.repThr = (p.repThresh[i] - 0.55f) / 0.4f;
+    a.pattern = g[genetics::kPattern];
+    a.hueOff = g[genetics::kHueOff] - 0.5f;
+    a.age01 = std::clamp(p.age[i] / w.cfg.eco.lifespan, 0.0f, 1.0f);
+    a.species = p.species[i];
+    a.id = p.id[i];
+    return a;
+}
+
+}  // namespace
+
+void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
+    const auto& p = w.pool;
+    const std::uint32_t n = p.count();
+
+    out.tick = w.tick;
+    out.simTime = w.time;
+    out.worldW = w.cfg.worldW;
+    out.worldH = w.cfg.worldH;
+    out.season = w.season;
+    out.births = w.stats.births;
+    out.kills = w.stats.kills;
+
+    out.agents.clear();
+    out.agents.reserve(n);
+    for (std::uint32_t i = 0; i < n; ++i) out.agents.push_back(makeVis(w, i));
+
+    // species, live counts straight from the pool so the list never lags
+    std::vector<std::uint32_t> counts(w.species.all().size(), 0);
+    for (std::uint32_t i = 0; i < n; ++i) ++counts[p.species[i]];
+    out.species.clear();
+    for (const auto& s : w.species.all()) {
+        if (!s.alive || counts[s.id] == 0) continue;
+        SpeciesVis v;
+        v.id = s.id; v.parent = s.parent; v.count = counts[s.id];
+        v.fullName = s.fullName(); v.shortName = s.shortName();
+        v.color = hsv(s.hue, s.sat, s.val);
+        v.role = static_cast<RoleVis>(s.role);
+        v.labelX = s.labelX; v.labelY = s.labelY;
+        v.meanAggr = s.meanAggr; v.meanDef = s.meanDef; v.meanSize = s.meanSize; v.meanSpeed = s.meanSpeed;
+        v.established = v.count >= genetics::kEstablished;
+        out.species.push_back(std::move(v));
+    }
+    std::sort(out.species.begin(), out.species.end(),
+              [](const SpeciesVis& a, const SpeciesVis& b) { return a.count > b.count; });
+
+    out.edges.clear();
+    for (const auto& [key, rate] : w.predation) {
+        const auto pred = static_cast<std::uint32_t>(key >> 32), prey = static_cast<std::uint32_t>(key & 0xFFFFFFFFu);
+        if (rate < 0.5f || pred >= counts.size() || prey >= counts.size() || !counts[pred] || !counts[prey]) continue;
+        out.edges.push_back({pred, prey, rate});
+    }
+
+    out.events.clear();
+    for (const auto& e : w.events) {
+        EffectVis v;
+        v.type = static_cast<EffectVis::Type>(e.type);
+        v.x = e.x; v.y = e.y; v.x2 = e.x2; v.y2 = e.y2; v.sp = e.sp; v.sp2 = e.sp2;
+        out.events.push_back(v);
+    }
+    w.events.clear();
+
+    // fields normalized for display
+    out.fieldW = w.Q.w;
+    out.fieldH = w.Q.h;
+    const std::size_t nf = w.Q.v.size();
+    out.food0.resize(nf); out.food1.resize(nf); out.heat.resize(nf);
+    const float kmax = w.cfg.eco.Kmax;
+    for (std::size_t i = 0; i < nf; ++i) {
+        out.food0[i] = std::clamp(w.R[0].v[i] / kmax, 0.0f, 1.0f);
+        out.food1[i] = std::clamp(w.R[1].v[i] / kmax, 0.0f, 1.0f);
+        out.heat[i] = std::clamp(w.Q.v[i] * 0.5f, 0.0f, 1.0f);
+    }
+    out.tracerX = w.tracerX;
+    out.tracerY = w.tracerY;
+
+    // selected organism
+    out.selected = {};
+    out.selectedRequested = selectedId;
+    if (selectedId != 0) {
+        for (std::uint32_t i = 0; i < n; ++i) {
+            if (p.id[i] != selectedId) continue;
+            SelectedVis& s = out.selected;
+            s.valid = true;
+            s.a = out.agents[i];
+            s.energyAbs = p.energy[i];
+            s.eMax = p.eMax[i];
+            s.ageSec = p.age[i];
+            s.generation = p.generation[i];
+            s.parentId = p.parent[i];
+            const auto c = genetics::controller(&p.genome[static_cast<std::size_t>(i) * kGenomeLen], s.a.energy);
+            for (int c4 = 0; c4 < 4; ++c4) s.w[c4] = c.w[c4];
+            for (std::uint32_t j = 0; j < n; ++j) {
+                if (p.id[j] == p.preyId[i]) { s.hasPrey = true; s.preyX = out.agents[j].x; s.preyY = out.agents[j].y; }
+                if (p.id[j] == p.threatId[i]) { s.hasThreat = true; s.threatX = out.agents[j].x; s.threatY = out.agents[j].y; }
+            }
+            if (s.hasThreat && s.w[2] < -0.3f) s.state = "fleeing";
+            else if (s.hasPrey && s.w[1] > 0.3f && s.a.aggr > 0.2f) s.state = "hunting";
+            else if (s.a.energy > 0.85f) s.state = "satiated";
+            else if (s.a.aggr < 0.35f) s.state = "grazing";
+            else s.state = "foraging";
+            break;
+        }
+    }
+}
+
+}  // namespace alife::render

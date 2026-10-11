@@ -4,15 +4,25 @@
 
 namespace alife {
 
+template <class F>
+void AgentPool::forEachColumn(F&& f) {
+    const float z = 0.0f;
+    const std::uint32_t z32 = 0;
+    const std::uint64_t z64 = 0;
+    f(energy, z); f(digest, z); f(age, z);
+    f(eta, 1.0f); f(senseR, 20.0f); f(vMax, 30.0f); f(aggression, z); f(repThresh, 0.7f);
+    f(radius, 5.0f); f(mass, 1.5f); f(defense, z); f(eMax, 60.0f); f(explore, 0.5f);
+    f(wx, z); f(wy, z); f(ax, z); f(ay, z); f(heading, z);
+    f(cell, z32); f(species, z32); f(generation, z32);
+    f(id, z64); f(parent, z64); f(birthTick, z64); f(preyId, z64); f(threatId, z64);
+}
+
 void AgentPool::reserve(std::size_t n) {
     for (auto& k : kin) {
         k.px.reserve(n); k.py.reserve(n); k.vx.reserve(n); k.vy.reserve(n);
     }
-    energy.reserve(n); heat.reserve(n); age.reserve(n);
-    eta.reserve(n); senseR.reserve(n); vMax.reserve(n); aggression.reserve(n); repThresh.reserve(n);
-    cell.reserve(n);
+    forEachColumn([n](auto& v, auto) { v.reserve(n); });
     genome.reserve(n * kGenomeLen);
-    id.reserve(n); parent.reserve(n); birthTick.reserve(n); species.reserve(n);
 }
 
 std::uint32_t AgentPool::spawn(float x, float y) {
@@ -20,12 +30,9 @@ std::uint32_t AgentPool::spawn(float x, float y) {
     for (auto& k : kin) {
         k.px.push_back(x); k.py.push_back(y); k.vx.push_back(0.0f); k.vy.push_back(0.0f);
     }
-    energy.push_back(0.0f); heat.push_back(0.0f); age.push_back(0.0f);
-    eta.push_back(1.0f); senseR.push_back(8.0f); vMax.push_back(1.0f);
-    aggression.push_back(0.0f); repThresh.push_back(1.0f);
-    cell.push_back(0);
+    forEachColumn([](auto& v, auto init) { v.push_back(init); });
     genome.resize(genome.size() + kGenomeLen, 0.0f);
-    id.push_back(nextId++); parent.push_back(0); birthTick.push_back(0); species.push_back(0);
+    id.back() = nextId++;
     return i;
 }
 
@@ -38,10 +45,7 @@ void AgentPool::swapRemove(std::uint32_t i) {
     for (auto& k : kin) {
         drop(k.px); drop(k.py); drop(k.vx); drop(k.vy);
     }
-    drop(energy); drop(heat); drop(age);
-    drop(eta); drop(senseR); drop(vMax); drop(aggression); drop(repThresh);
-    drop(cell);
-    drop(id); drop(parent); drop(birthTick); drop(species);
+    forEachColumn([&](auto& v, auto) { drop(v); });
     if (i != last) {
         std::copy_n(genome.begin() + static_cast<std::ptrdiff_t>(last * kGenomeLen), kGenomeLen,
                     genome.begin() + static_cast<std::ptrdiff_t>(i * kGenomeLen));

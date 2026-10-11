@@ -13,19 +13,22 @@ struct Kinematics {
 
 // Structure-of-arrays agent storage. Every column has exactly count() entries.
 // Removal is swap-remove, so indices are NOT stable. Anything that outlives a
-// barrier (evo queue, lineage) must hold `id`, never an index.
+// barrier (evo queue, lineage, UI selection) must hold `id`, never an index.
 struct AgentPool {
     Kinematics kin[2];
 
     // warm: meso tick
-    avec<float> energy, heat, age;
+    avec<float> energy, digest, age;  // digest: seconds until the next hunt is possible
     avec<float> eta, senseR, vMax, aggression, repThresh;  // decoded phenotype
-    avec<std::uint32_t> cell;
+    avec<float> radius, mass, defense, eMax, explore;
+    avec<float> wx, wy;      // OU wander state (colored noise)
+    avec<float> ax, ay;      // steering command from the controller
+    avec<float> heading;     // smoothed facing, for rendering
+    avec<std::uint32_t> cell, species, generation;
 
     // cold: evo and telemetry only
     avec<float> genome;  // count * kGenomeLen, row-major
-    avec<std::uint64_t> id, parent, birthTick;
-    avec<std::uint32_t> species;
+    avec<std::uint64_t> id, parent, birthTick, preyId, threatId;
 
     std::uint64_t nextId = 1;
 
@@ -41,6 +44,8 @@ struct AgentPool {
     void swapRemove(std::uint32_t i);
 
    private:
+    template <class F>
+    void forEachColumn(F&& f);
     int r_ = 0;
 };
 
