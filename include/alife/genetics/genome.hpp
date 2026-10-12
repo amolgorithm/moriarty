@@ -18,7 +18,7 @@ enum Gene : std::size_t {
 
 // Species distance includes expressed program architecture as well as scalar traits.
 inline constexpr std::size_t kDistTraitGenes = 8;
-inline constexpr std::size_t kDistGenes = kDistTraitGenes + 10;
+inline constexpr std::size_t kDistGenes = kDistTraitGenes + 12;
 inline constexpr std::size_t kDistIndex[kDistTraitGenes] = {
     kEta, kSense, kSpeed, kAggr, kRepThr, kSize, kDefense, kExplore};
 

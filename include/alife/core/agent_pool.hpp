@@ -21,7 +21,7 @@ struct AgentPool {
     Kinematics kin[2];
 
     // warm: meso tick
-    avec<float> energy, digest, age;  // digest: seconds until the next hunt is possible
+    avec<float> energy, bodyEnergy, digest, age;  // digest: seconds until the next hunt is possible
     avec<float> eta, senseR, vMax, aggression, repThresh;  // decoded phenotype
     avec<float> radius, mass, defense, eMax, explore;
     avec<float> wx, wy;      // OU wander state (colored noise)
@@ -36,6 +36,7 @@ struct AgentPool {
     avec<float> genome;  // count * kGenomeLen, row-major
     std::vector<genetics::Circuit> circuit;
     std::vector<std::vector<float>> circuitState;
+    std::vector<std::vector<float>> circuitWeights, circuitEligibility;
     avec<std::uint64_t> id, parent, birthTick, preyId, threatId;
 
     std::uint64_t nextId = 1;

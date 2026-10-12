@@ -9,7 +9,7 @@ void AgentPool::forEachColumn(F&& f) {
     const float z = 0.0f;
     const std::uint32_t z32 = 0;
     const std::uint64_t z64 = 0;
-    f(energy, z); f(digest, z); f(age, z);
+    f(energy, z); f(bodyEnergy, z); f(digest, z); f(age, z);
     f(eta, 1.0f); f(senseR, 20.0f); f(vMax, 30.0f); f(aggression, z); f(repThresh, 0.7f);
     f(radius, 5.0f); f(mass, 1.5f); f(defense, z); f(eMax, 60.0f); f(explore, 0.5f);
     f(wx, z); f(wy, z); f(ax, z); f(ay, z);
@@ -28,6 +28,8 @@ void AgentPool::reserve(std::size_t n) {
     genome.reserve(n * kGenomeLen);
     circuit.reserve(n);
     circuitState.reserve(n);
+    circuitWeights.reserve(n);
+    circuitEligibility.reserve(n);
 }
 
 std::uint32_t AgentPool::spawn(float x, float y) {
@@ -39,6 +41,8 @@ std::uint32_t AgentPool::spawn(float x, float y) {
     genome.resize(genome.size() + kGenomeLen, 0.0f);
     circuit.emplace_back();
     circuitState.emplace_back();
+    circuitWeights.emplace_back();
+    circuitEligibility.emplace_back();
     id.back() = nextId++;
     return i;
 }
@@ -56,9 +60,13 @@ void AgentPool::swapRemove(std::uint32_t i) {
     if (i != last) {
         circuit[i] = std::move(circuit[last]);
         circuitState[i] = std::move(circuitState[last]);
+        circuitWeights[i] = std::move(circuitWeights[last]);
+        circuitEligibility[i] = std::move(circuitEligibility[last]);
     }
     circuit.pop_back();
     circuitState.pop_back();
+    circuitWeights.pop_back();
+    circuitEligibility.pop_back();
     if (i != last) {
         std::copy_n(genome.begin() + static_cast<std::ptrdiff_t>(last * kGenomeLen), kGenomeLen,
                     genome.begin() + static_cast<std::ptrdiff_t>(i * kGenomeLen));

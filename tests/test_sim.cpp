@@ -28,9 +28,12 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
     CHECK(w.pool.read().px.size() == n);
     CHECK(w.pool.write().vy.size() == n);
     CHECK(w.pool.species.size() == n);
+    CHECK(w.pool.bodyEnergy.size() == n);
     CHECK(w.pool.genome.size() == static_cast<std::size_t>(n) * kGenomeLen);
     CHECK(w.pool.circuit.size() == n);
     CHECK(w.pool.circuitState.size() == n);
+    CHECK(w.pool.circuitWeights.size() == n);
+    CHECK(w.pool.circuitEligibility.size() == n);
     CHECK(w.pool.wx.size() == n);
     CHECK(w.pool.preyId.size() == n);
     CHECK(w.pool.plantIntake.size() == n);
@@ -45,6 +48,7 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
         CHECK(w.pool.read().py[i] >= 0.0f);
         CHECK(w.pool.read().py[i] < w.cfg.worldH);
         CHECK(std::isfinite(w.pool.energy[i]));
+        CHECK(w.pool.bodyEnergy[i] > 0.0f);
         CHECK(w.pool.energy[i] <= w.pool.eMax[i] * 1.31f);
         CHECK(!w.pool.circuit[i].empty());
     }
@@ -102,6 +106,13 @@ TEST_CASE("telemetry counts established species from the live population") {
     std::uint32_t expected = 0;
     for (const auto count : counts) expected += count >= genetics::kEstablished;
     CHECK(telemetry::collect(w).speciesCount == expected);
+}
+
+TEST_CASE("initial population begins as standing variation within one species") {
+    World w;
+    REQUIRE(w.species.all().size() == 1);
+    REQUIRE(w.pool.count() > 0);
+    for (std::uint32_t i = 0; i < w.pool.count(); ++i) CHECK(w.pool.species[i] == 0);
 }
 
 TEST_CASE("environment noise is not periodic: seasons drift") {

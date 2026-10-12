@@ -31,12 +31,13 @@ struct EcoParams {
     float bite = 2.7f;           // resource units per second at full appetite
     float energyPerR = 1.0f;
     // predation
-    float predEff = 0.42f;
+    float predEff = 0.55f;
     float digestTime = 12.0f;    // s of handling time after a kill
-    float huntBelow = 0.50f;     // only hunt when energy is under this fraction of max
+    float huntBelow = 0.65f;     // hungry predators begin hunting before reserves are critical
     float aggrCost = 0.28f;      // upkeep of weaponry, x aggression x mass^0.75
-    float circuitCost = 0.006f;  // upkeep per expressed computational unit, x mass^0.75
-    float unitBuildCost = 0.18f; // embodied energy per inherited computational unit
+    float circuitCost = 0.0015f; // upkeep per expressed computational unit, x mass^0.75
+    float unitBuildCost = 0.08f; // embodied energy per inherited computational unit
+    float carcassPerMass = 8.0f; // finite chemical-energy equivalent stored in body tissue
     float lunge = 1.5f;          // energy per attack attempt
     // life history
     float lifespan = 200.0f;     // s

@@ -15,9 +15,12 @@ float readSource(std::size_t source, std::size_t unitIndex, std::span<const floa
 
 }  // namespace
 
-CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const CircuitInputs& inputs) {
+CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const CircuitInputs& inputs,
+                                  std::span<const float> previousUnits,
+                                  std::span<const float> effectiveWeights) {
     CircuitEvaluation result;
     result.units.resize(circuit.size());
+    result.eligibility.resize(circuit.size());
     std::array<std::size_t, kCircuitOutputs> counts{};
     for (std::size_t i = 0; i < circuit.size(); ++i) {
         const UnitGene& gene = circuit[i];
@@ -33,9 +36,16 @@ CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const Circu
             case UnitOp::Maximum: value = std::max(a, b); break;
             case UnitOp::Absolute: value = std::fabs(a); break;
             case UnitOp::Tanh: value = std::tanh(a + b); break;
+            case UnitOp::Memory: {
+                const float previous = i < previousUnits.size() ? previousUnits[i] : 0.0f;
+                value = 0.8f * previous + 0.2f * std::tanh(a + b);
+                break;
+            }
             case UnitOp::Count: value = 0.0f; break;
         }
-        value = std::clamp(value * gene.weight + gene.bias, -1.0f, 1.0f);
+        result.eligibility[i] = value;
+        const float weight = i < effectiveWeights.size() ? effectiveWeights[i] : gene.weight;
+        value = std::clamp(value * weight + gene.bias, -1.0f, 1.0f);
         result.units[i] = value;
         if (gene.output < kCircuitOutputs) {
             result.outputs[gene.output] += value;
@@ -44,9 +54,19 @@ CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const Circu
     }
     for (std::size_t i = 0; i < kCircuitOutputs; ++i) {
         if (counts[i] != 0)
-            result.outputs[i] = std::clamp(result.outputs[i] / std::sqrt(static_cast<float>(counts[i])), -1.0f, 1.0f);
+            result.outputs[i] = std::clamp(result.outputs[i] / static_cast<float>(counts[i]), -1.0f, 1.0f);
     }
     return result;
+}
+
+void applyRewardModulatedPlasticity(std::span<const UnitGene> circuit,
+                                    std::span<const float> eligibility, float reward,
+                                    std::span<float> effectiveWeights) {
+    const std::size_t n = std::min({circuit.size(), eligibility.size(), effectiveWeights.size()});
+    for (std::size_t i = 0; i < n; ++i) {
+        effectiveWeights[i] = std::clamp(
+            effectiveWeights[i] + circuit[i].plasticity * reward * eligibility[i], -2.0f, 2.0f);
+    }
 }
 
 Circuit makeSeedCircuit() {
@@ -59,6 +79,7 @@ Circuit makeSeedCircuit() {
         gene.output = static_cast<std::uint8_t>(i);
         gene.weight = 1.0f;
         gene.bias = 0.0f;
+        gene.plasticity = 0.08f;
     }
     return circuit;
 }
@@ -75,6 +96,7 @@ void repairCircuit(Circuit& circuit, CounterRng& rng) {
         if (gene.output >= kCircuitOutputs && gene.output != kNoCircuitOutput) gene.output = kNoCircuitOutput;
         gene.weight = std::clamp(gene.weight, -2.0f, 2.0f);
         gene.bias = std::clamp(gene.bias, -1.0f, 1.0f);
+        gene.plasticity = std::clamp(gene.plasticity, 0.0f, 0.25f);
     }
 }
 

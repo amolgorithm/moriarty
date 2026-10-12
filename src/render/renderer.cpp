@@ -293,7 +293,8 @@ void Renderer::drawBody(const AgentVis& a, Rgb c, float alpha, int lod) {
 
     static constexpr Rgb kUnitColors[] = {
         {114, 177, 155}, {125, 164, 216}, {199, 148, 218}, {224, 151, 111},
-        {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124}};
+        {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124},
+        {181, 151, 211}};
     const float unitRadius = std::max(r * (0.19f / std::sqrt(std::max(1.0f, static_cast<float>(a.circuitUnits)))),
                                      0.8f / zoom);
     std::uint64_t ordinal = 0;
@@ -374,18 +375,21 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
     DrawTextEx(font_, title, {panel.x + 16.0f, panel.y + 12.0f}, 18.0f, 1.0f, col(theme::accent));
     DrawTextEx(font_, "U close  |  S00-01 food  S02-03 prey  S04-05 threat  S06-07 kin  S08 energy",
                {panel.x + 16.0f, panel.y + 36.0f}, 9.0f, 1.0f, col(theme::textDim));
-    DrawTextEx(font_, "S09 food mix  S10-11 current  |  a/b: source  w: gain  b: bias  v: expressed value",
+    DrawTextEx(font_, "S09 mix  S10-11 current  S12 group  S13 alignment  S14 food  S15 age",
                {panel.x + 16.0f, panel.y + 48.0f}, 9.0f, 1.0f, col(theme::textDim));
+    DrawTextEx(font_, "a/b: source  w: learned(inherited) gain  b: bias  p: plasticity  v: expressed value",
+               {panel.x + 16.0f, panel.y + 60.0f}, 9.0f, 1.0f, col(theme::textDim));
 
-    static constexpr const char* kOps[] = {"id", "add", "mul", "sub", "min", "max", "abs", "tanh"};
-    static constexpr const char* kPorts[] = {"x-force", "y-force", "uptake", "resource", "defense"};
+    static constexpr const char* kOps[] = {"id", "add", "mul", "sub", "min", "max", "abs", "tanh", "memory"};
+    static constexpr const char* kPorts[] = {"x-force", "y-force", "uptake", "resource", "defense", "cohesion"};
     static constexpr Rgb kUnitColors[] = {
         {114, 177, 155}, {125, 164, 216}, {199, 148, 218}, {224, 151, 111},
-        {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124}};
+        {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124},
+        {181, 151, 211}};
     constexpr int kColumns = 4;
-    const float left = panel.x + 12.0f, top = panel.y + 72.0f;
+    const float left = panel.x + 12.0f, top = panel.y + 84.0f;
     const float cellW = (width - 24.0f) / static_cast<float>(kColumns);
-    const float cellH = (height - 84.0f) /
+    const float cellH = (height - 96.0f) /
                         static_cast<float>((units.size() + kColumns - 1) / kColumns);
     auto position = [&](std::size_t i) {
         const std::size_t row = i / kColumns, column = i % kColumns;
@@ -417,8 +421,10 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
         }
         const std::string sourceA = inputName(unit.sourceA);
         const std::string sourceB = inputName(unit.sourceB);
-        std::snprintf(line, sizeof line, "a%s b%s w%.1f b%.1f v%.2f", sourceA.c_str(), sourceB.c_str(),
-                      static_cast<double>(unit.weight), static_cast<double>(unit.bias),
+        std::snprintf(line, sizeof line, "a%s b%s w%.1f(%.1f) b%.1f p%.2f v%.2f", sourceA.c_str(), sourceB.c_str(),
+                      static_cast<double>(unit.weight), static_cast<double>(unit.inheritedWeight),
+                      static_cast<double>(unit.bias),
+                      static_cast<double>(unit.plasticity),
                       static_cast<double>(unit.value));
         DrawTextEx(font_, line, {r.x + 6.0f, r.y + 15.0f}, 8.0f, 1.0f, col(theme::textDim));
     }

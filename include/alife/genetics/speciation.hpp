@@ -27,7 +27,7 @@ struct Species {
     std::uint64_t founded = 0, extinct = 0;
     bool alive = true, announced = false;
     std::uint32_t count = 0, peak = 0;
-    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0;
+    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0, meanUnits = 0;
     float labelX = 0, labelY = 0;
     Role role = Role::Grazer;
 
@@ -60,7 +60,7 @@ class SpeciesTable {
     static void project(const float* genome, std::span<const UnitGene> circuit, float* out);
     static float distance(const float* projected, const std::array<float, kDistGenes>& ex);
 
-    float delta = 0.05f;
+    float delta = 0.08f;
 
    private:
     std::vector<Species> sp_;

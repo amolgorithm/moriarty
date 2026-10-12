@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "alife/core/config.hpp"
@@ -83,6 +84,26 @@ TEST_CASE("compositional circuit units combine sensor inputs into heritable outp
     REQUIRE(e.units.size() == 2);
     CHECK(e.outputs[0] == doctest::Approx(0.75f));
     CHECK(e.outputs[1] == doctest::Approx(0.25f));
+}
+
+TEST_CASE("memory units retain a decaying internal signal") {
+    const Circuit circuit{{UnitOp::Memory, 0, 1, 0, 1.0f, 0.0f}};
+    CircuitInputs inputs{};
+    inputs[0] = 1.0f;
+    const auto first = evaluateCircuit(circuit, inputs);
+    const auto second = evaluateCircuit(circuit, inputs, first.units);
+    const float input = std::tanh(1.0f);
+    CHECK(first.units[0] == doctest::Approx(0.2f * input));
+    CHECK(second.units[0] == doctest::Approx(0.8f * first.units[0] + 0.2f * input));
+}
+
+TEST_CASE("reward-modulated plasticity adapts active subunits and stays bounded") {
+    Circuit circuit{{UnitOp::Identity, 0, 0, 0, 1.0f, 0.0f, 0.2f}};
+    std::vector<float> weights{1.0f}, eligibility{0.5f};
+    applyRewardModulatedPlasticity(circuit, eligibility, 0.5f, weights);
+    CHECK(weights[0] == doctest::Approx(1.05f));
+    applyRewardModulatedPlasticity(circuit, eligibility, -0.5f, weights);
+    CHECK(weights[0] == doctest::Approx(1.0f));
 }
 
 TEST_CASE("circuit mutation changes structure without invalidating connections") {

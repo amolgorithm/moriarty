@@ -2,8 +2,9 @@
 
 Artificial-life and digital-evolution experiment in C++20. Organisms compete on a toroidal,
 resource-limited world. Their inherited computational circuits can change in length, wiring, and
-operation through mutation and recombination; unit duplication can preserve and elaborate an
-existing computation, while execution and construction consume energy.
+operation through mutation and recombination; duplication, deletion, recurrent memory, and
+reward-modulated subunit plasticity make their structure behaviorally active, while execution and
+construction consume energy.
 This is a bounded experimental model, not a claim of literal infinite complexity or biological
 thermodynamic accuracy.
 
@@ -33,10 +34,10 @@ moriarty_viewer --shot a.png --zoom 4 --frames 120
 
 Zoom out for species clusters; zoom in for individual organisms. Colors encode lineage, brightness
 encodes energy, and the species list and food web summarize current ecological interactions. The
-species count reports extant taxa with at least 8 organisms; the list includes every extant taxon and
-scrolls with the wheel while hovered. The field legend distinguishes fine food, coarse food, and
-waste heat. The world is 1728 x 1152 units; wheel zooms toward the cursor outside the species list
-and dragging pans.
+species count reports extant taxa with at least 8 organisms; the list includes every extant taxon,
+shows mean circuit units, and scrolls with the wheel while hovered. The field legend describes the
+two abstract food-particle fields and waste heat. The world is 1728 x 1152 units; wheel zooms toward
+the cursor outside the species list and dragging pans.
 
 | Input | Action |
 |---|---|
@@ -68,17 +69,22 @@ topologically ordered circuit (`genetics/circuit.hpp`). Each unit combines earli
 local sensory inputs using generic arithmetic/nonlinear operators. Circuit outputs connect to the
 body's physical interfaces: motion, uptake, resource allocation, and defense. Unit duplication,
 insertion, deletion, rewiring, operator and parameter mutations, and recombination are inherited by
-offspring.
-There are no hand-authored ecological founder archetypes in the live simulation. The initial
-population descends from one minimal four-unit ancestor program with continuous heritable variation.
-Initial standing variation is clustered by the same trait/program distance used for later speciation;
-additional internal computations arise through mutation or recombination.
+offspring. There are no hand-authored ecological founder archetypes in the live simulation. The
+initial population descends from one minimal four-unit ancestor program with modest continuous
+heritable variation and begins in one species. New species can branch only as descendants accumulate
+trait or program divergence; starting genetic variation is not misreported as thousands of species.
 
-Circuits are deterministic bounded DAGs: connections address a sensory input or an earlier unit,
-and each organism currently has a maximum of 96 units. Execution adds metabolic upkeep; inherited
-units have an embodied construction-energy cost. The microscope lists every unit, its two sources,
-operator, parameters, current value, and output interface. The live "mean computational units"
-chart measures average circuit length.
+Circuits are bounded programs with feed-forward connections and recurrent memory units; each
+organism currently has a maximum of 96 units. Sensory inputs include food, prey, threats, energy,
+currents, conspecific density/alignment, local food abundance, and age. Outputs influence steering,
+resource uptake, food preference, defense, and social cohesion. Each unit carries a heritable
+plasticity rate; an eligibility trace is adjusted by recent net energy change, changing that
+organism's effective unit weights during its lifetime. The inherited program sets the learning rate,
+not a scripted skill; offspring begin from inherited weights and learn anew. Execution adds metabolic
+upkeep; inherited units have a construction-energy cost. Unit duplication initially preserves the
+copied unit's output connection, so redundancy can precede mutation-driven divergence. The
+microscope shows current learned weights, plasticity, recurrent state, and output interface. Species
+rows show mean circuit units; the live chart measures average circuit length.
 
 The fixed scalar traits and actuator/sensor interfaces remain part of this prototype. They are
 deliberate limits on the simulated substrate, not an implementation of an unconstrained computer.
@@ -86,22 +92,30 @@ Likewise, arbitrary units of energy are an abstract resource budget, not chemica
 validated physical thermodynamic model.
 
 **Ecology and selection.**
-- Two spatial food fields regrow under variable conditions; organisms consume shared local stocks.
+- Two abstract spatial food fields regrow under variable conditions: fine suspended particles favor
+  smaller bodies and coarse particles favor larger bodies, with trait/circuit preference affecting
+  intake. Grazing removes finite local stock; it is not a named plant species or infinite passive
+  energy. Predation bites transfer the prey's reserve and finite embodied tissue-energy; offspring
+  tissue must be paid for by the parent.
 - Survival behavior has an energy-dependent action bias: hungry individuals move up food gradients,
   seek vulnerable smaller prey when aggression makes hunting worthwhile, and move away from nearby
   threats. Their inherited circuit steers and modifies these responses; colored-noise exploration
-  perturbs, rather than replaces, directed movement. Same-species cannibalism is limited to desperate
-  attacks on substantially smaller conspecifics.
+  perturbs, rather than replaces, directed movement. Evolved cohesion outputs can draw conspecifics
+  together or separate them; grouping increases defense against attacks but also concentrates
+  competition and crowding costs. Aggressive, substantially larger individuals can also hunt smaller
+  conspecifics, while extreme size differences permit desperate cannibalism at any aggression level.
 - Upkeep pays for body mass, efficiency, sensing, movement, defense, predation, crowding, and circuit
   size. Resource scarcity can cause starvation; corpses return part of their resources.
 - Predation has a handling interval, attack cost, and stochastic outcomes affected by body and
-  evolved response. The interaction graph prioritizes recent hunter/prey links, including rare
-  intraspecific predation; selected organisms show cumulative food-field and prey energy intake
-  since birth, while the world panel reports total energy obtained through both channels.
+  evolved response. The interaction graph prioritizes recent hunter/prey links, including
+  size-asymmetric intraspecific predation; selected organisms show cumulative food-field and prey
+  energy intake since birth, while the world panel reports total energy obtained through both
+  channels.
 - Energy accounting includes both food fields, organism reserves, and waste heat. Resource regrowth
   is explicit external energy input; unused assimilation, maintenance, construction, unrecycled
-  remains, and heat decay are recorded as dissipated energy. Predation transfers only the prey's
-  stored reserve (not an unaccounted body-mass bonus). The displayed/headless balance residual is
+  remains, and heat decay are recorded as dissipated energy. Predation transfers the prey's finite
+  stored reserve and embodied tissue energy (not an unaccounted body-mass bonus). The
+  displayed/headless balance residual is
   inventory plus dissipated energy minus initial inventory and external input; it should stay near
   zero apart from floating-point rounding. This is a conserved abstract ledger, not a detailed
   physical energy/biomass model.

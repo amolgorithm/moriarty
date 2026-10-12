@@ -105,12 +105,16 @@ std::uint32_t World::addAgent(const float* genome, float x, float y, float energ
         pool.circuit[i] = inheritedCircuit;
     }
     pool.circuitState[i].assign(pool.circuit[i].size(), 0.0f);
+    pool.circuitWeights[i].reserve(pool.circuit[i].size());
+    pool.circuitEligibility[i].assign(pool.circuit[i].size(), 0.0f);
+    for (const auto& unit : pool.circuit[i]) pool.circuitWeights[i].push_back(unit.weight);
     const auto ph = genetics::decode(genome, cfg.eco.vTop);
     pool.eta[i] = ph.eta; pool.senseR[i] = ph.senseR; pool.vMax[i] = ph.vMax;
     pool.aggression[i] = ph.aggression; pool.repThresh[i] = ph.repThresh;
     pool.radius[i] = ph.radius; pool.mass[i] = ph.mass; pool.defense[i] = ph.defense;
     pool.eMax[i] = ph.eMax; pool.explore[i] = ph.explore;
     pool.energy[i] = std::min(energy, ph.eMax);
+    pool.bodyEnergy[i] = cfg.eco.carcassPerMass * ph.mass;
     pool.species[i] = sp;
     pool.parent[i] = parentId;
     pool.generation[i] = gen;
@@ -130,18 +134,16 @@ void World::seedPopulation() {
         CounterRng rng(cfg.seed, 0, 0x1000 + i);
         float g[kGenomeLen];
         for (std::size_t k = 0; k < kGenomeLen; ++k)
-            g[k] = std::clamp(base[k] + 0.12f * rng.normal(), 0.0f, 1.0f);
+            g[k] = std::clamp(base[k] + 0.035f * rng.normal(), 0.0f, 1.0f);
         g[genetics::kAggr] = std::clamp(base[genetics::kAggr] + 0.08f * rng.normal(), 0.0f, 1.0f);
-        g[genetics::kMutRate] = std::clamp(0.45f + 0.12f * rng.normal(), 0.05f, 1.0f);
+        g[genetics::kMutRate] = std::clamp(0.45f + 0.06f * rng.normal(), 0.05f, 1.0f);
 
         const float x = rng.uniform() * cfg.worldW;
         const float y = rng.uniform() * cfg.worldH;
         const auto ph = genetics::decode(g, cfg.eco.vTop);
-        genetics::Circuit circuit = ancestorCircuit;
-        genetics::mutateCircuit(circuit, 0.08f, rng);
-        const std::uint32_t initialSpecies = species.classify(g, circuit, ancestor, 0, rng);
+        const std::uint32_t initialSpecies = ancestor;
         const std::uint32_t idx = addAgent(g, x, y, ph.eMax * (0.4f + 0.4f * rng.uniform()),
-                                           initialSpecies, 0, 0, circuit);
+                                           initialSpecies, 0, 0, ancestorCircuit);
         pool.age[idx] = rng.uniform() * 35.0f;
         pool.heading[idx] = rng.uniform() * kTwoPi;
     }

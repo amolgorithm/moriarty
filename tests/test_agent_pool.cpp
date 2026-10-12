@@ -10,6 +10,8 @@ TEST_CASE("spawn and swap-remove keep every column the same length") {
     CHECK(p.count() == 5);
     CHECK(p.genome.size() == 5 * kGenomeLen);
     CHECK(p.circuit.size() == 5);
+    CHECK(p.circuitWeights.size() == 5);
+    CHECK(p.circuitEligibility.size() == 5);
 
     p.genome[4 * kGenomeLen] = 99.0f;  // tag the last agent
     const auto lastId = p.id[4];
@@ -20,8 +22,11 @@ TEST_CASE("spawn and swap-remove keep every column the same length") {
     CHECK(p.write().py.size() == 4);
     CHECK(p.genome.size() == 4 * kGenomeLen);
     CHECK(p.species.size() == 4);
+    CHECK(p.bodyEnergy.size() == 4);
     CHECK(p.circuit.size() == 4);
     CHECK(p.circuitState.size() == 4);
+    CHECK(p.circuitWeights.size() == 4);
+    CHECK(p.circuitEligibility.size() == 4);
     CHECK(p.plantIntake.size() == 4);
     CHECK(p.animalIntake.size() == 4);
     CHECK(p.action.size() == 4);
@@ -39,6 +44,8 @@ TEST_CASE("removing the only agent empties the pool") {
     CHECK(p.genome.empty());
     CHECK(p.circuit.empty());
     CHECK(p.circuitState.empty());
+    CHECK(p.circuitWeights.empty());
+    CHECK(p.circuitEligibility.empty());
     CHECK(p.plantIntake.empty());
     CHECK(p.animalIntake.empty());
     CHECK(p.action.empty());

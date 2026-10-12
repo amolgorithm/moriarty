@@ -215,6 +215,8 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         if (vs.focusSpecies == static_cast<std::int64_t>(s.id)) DrawRectangleLinesEx(row, 1.5f, col(s.color, 230));
         DrawCircleV({row.x + 12, row.y + 10}, 5.0f, col(s.color));
         label(font, s.shortName.c_str(), row.x + 24, row.y + 3, 13, col(s.established ? theme::text : theme::textDim));
+        std::snprintf(buf, sizeof buf, "%.0fu", static_cast<double>(s.meanUnits));
+        rightLabel(font, buf, row.x + row.width - 42, row.y + 4, 10, col(theme::textDim));
         std::snprintf(buf, sizeof buf, "%c", roleLetter(s.role));
         label(font, buf, row.x + row.width - 62, row.y + 3, 12, col(theme::textDim));
         std::snprintf(buf, sizeof buf, "%u", s.count);
@@ -240,8 +242,10 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     label(font, buf, fw.x + 14, fw.y + 31, 10, col(theme::textDim));
     std::snprintf(buf, sizeof buf, "energy balance Δ: %.3g", snap.energyBalanceError);
     label(font, buf, fw.x + 14, fw.y + 45, 10, col(theme::textDim));
-    label(font, "field: green=fine food · amber=coarse food · rust=heat", fw.x + 14, fw.y + 59, 9,
-          col(theme::textDim, 190));
+    label(font, "green=small suspended food · amber=large food particles · rust=heat",
+          fw.x + 14, fw.y + 59, 9, col(theme::textDim, 190));
+    label(font, "size/traits set grazing; bites transfer prey energy",
+          fw.x + 14, fw.y + 70, 9, col(theme::textDim, 190));
     {
         std::vector<const SpeciesVis*> nodes;
         auto addNode = [&](std::uint32_t id) {

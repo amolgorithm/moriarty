@@ -32,9 +32,10 @@ void mutateCircuit(Circuit& circuit, float rate, CounterRng& rng) {
                           static_cast<std::uint8_t>(rng.next() % kCircuitOutputs);
         gene.weight = std::clamp(gene.weight + rate * rng.normal(), -2.0f, 2.0f);
         gene.bias = std::clamp(gene.bias + rate * 0.5f * rng.normal(), -1.0f, 1.0f);
+        gene.plasticity = std::clamp(gene.plasticity + rate * 0.2f * rng.normal(), 0.0f, 0.25f);
     }
 
-    if (circuit.size() < kMaxCircuitUnits && rng.uniform() < 0.05f + rate * 0.9f) {
+    if (circuit.size() < kMaxCircuitUnits && rng.uniform() < 0.12f + rate * 0.9f) {
         UnitGene gene;
         if (!circuit.empty() && rng.uniform() < 0.7f) {
             gene = circuit[static_cast<std::size_t>(rng.next() % circuit.size())];
@@ -47,9 +48,10 @@ void mutateCircuit(Circuit& circuit, float rate, CounterRng& rng) {
                                                : kNoCircuitOutput;
             gene.weight = (rng.uniform() * 2.0f - 1.0f) * 1.5f;
             gene.bias = (rng.uniform() * 2.0f - 1.0f) * 0.35f;
+            gene.plasticity = rng.uniform() * 0.08f;
         }
         circuit.push_back(gene);
-    } else if (circuit.size() > 3 && rng.uniform() < 0.008f + rate * 0.25f) {
+    } else if (circuit.size() > 3 && rng.uniform() < 0.07f + rate * 0.25f) {
         const std::size_t removed = static_cast<std::size_t>(rng.next() % circuit.size());
         const std::size_t removedSource = kCircuitInputs + removed;
         for (std::size_t i = removed + 1; i < circuit.size(); ++i) {

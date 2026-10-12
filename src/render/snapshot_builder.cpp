@@ -71,6 +71,7 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
         v.role = static_cast<RoleVis>(s.role);
         v.labelX = s.labelX; v.labelY = s.labelY;
         v.meanAggr = s.meanAggr; v.meanDef = s.meanDef; v.meanSize = s.meanSize; v.meanSpeed = s.meanSpeed;
+        v.meanUnits = s.meanUnits;
         v.established = v.count >= genetics::kEstablished;
         out.species.push_back(std::move(v));
     }
@@ -133,8 +134,10 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
                 unit.output = gene.output;
                 unit.sourceA = gene.sourceA;
                 unit.sourceB = gene.sourceB;
-                unit.weight = gene.weight;
+                unit.weight = u < p.circuitWeights[i].size() ? p.circuitWeights[i][u] : gene.weight;
+                unit.inheritedWeight = gene.weight;
                 unit.bias = gene.bias;
+                unit.plasticity = gene.plasticity;
                 if (u < p.circuitState[i].size()) unit.value = p.circuitState[i][u];
                 s.units.push_back(unit);
             }

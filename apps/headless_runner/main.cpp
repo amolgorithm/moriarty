@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "alife/concurrency/thread_pool.hpp"
@@ -65,11 +66,23 @@ int main(int argc, char** argv) {
     std::printf("\nextant taxa at end: %zu total; showing up to 25\n", extant.size());
     for (std::size_t i = 0; i < shown; ++i) {
         const auto& sp = world.species.all()[extant[i]];
-        std::printf("  %-22s n=%-5u aggr=%.2f size=%.1f speed=%.0f def=%.2f %s\n", sp.fullName().c_str(),
-                    liveCounts[extant[i]],
+        std::printf("  %-22s n=%-5u units=%.1f aggr=%.2f size=%.1f speed=%.0f def=%.2f %s\n",
+                    sp.fullName().c_str(), liveCounts[extant[i]], static_cast<double>(sp.meanUnits),
                     static_cast<double>(sp.meanAggr), static_cast<double>(sp.meanSize), static_cast<double>(sp.meanSpeed),
                     static_cast<double>(sp.meanDef), sp.parent == alife::genetics::SpeciesTable::kNone ? "founder" : "derived");
     }
+    double learnedDelta = 0.0;
+    std::size_t learnedUnits = 0, memoryUnits = 0;
+    for (std::uint32_t i = 0; i < world.pool.count(); ++i) {
+        const auto& circuit = world.pool.circuit[i];
+        for (std::size_t u = 0; u < circuit.size(); ++u) {
+            learnedDelta += std::abs(world.pool.circuitWeights[i][u] - circuit[u].weight);
+            ++learnedUnits;
+            memoryUnits += circuit[u].op == alife::genetics::UnitOp::Memory;
+        }
+    }
+    std::printf("subunit adaptation: mean |learned-inherited weight| %.4f; memory units %zu\n",
+                learnedUnits ? learnedDelta / static_cast<double>(learnedUnits) : 0.0, memoryUnits);
     const double balance = world.energyInventory() + world.stats.dissipatedEnergy -
                            world.stats.initialEnergy - world.stats.externalEnergy;
     std::printf("energy ledger: start %.3f + external %.3f = inventory %.3f + dissipated %.3f (residual %.3g)\n",
