@@ -51,9 +51,10 @@ struct SelectedVis {
     bool valid = false;
     AgentVis a;
     float energyAbs = 0, eMax = 0, ageSec = 0;
+    float plantIntake = 0, animalIntake = 0;
     std::uint32_t generation = 0;
     std::uint64_t parentId = 0;
-    float outputs[5] = {0, 0, 0, 0, 0};  // expressed circuit action outputs
+    float outputs[5] = {0, 0, 0, 0, 0};  // movement intent, then expressed uptake/resource/defense signals
     bool hasPrey = false, hasThreat = false;
     float preyX = 0, preyY = 0, threatX = 0, threatY = 0;
     std::string state;
@@ -85,6 +86,8 @@ struct RenderSnapshot {
     std::vector<float> tracerX, tracerY;
 
     std::uint64_t births = 0, kills = 0;
+    double plantEnergy = 0.0, animalEnergy = 0.0;
+    double energyBalanceError = 0.0;
 
     const SpeciesVis* findSpecies(std::uint32_t id) const {
         for (const auto& s : species)

@@ -33,10 +33,13 @@ class Hud {
               const ViewState& vs, int fps, int sw, int sh);
     bool overPanel(Vector2 p) const;
     std::int64_t speciesRowAt(Vector2 p) const;  // species id under the cursor, -1 if none
+    bool scrollSpecies(float wheel, Vector2 mouse, int screenHeight, std::size_t speciesCount,
+                       bool hasSelection);
 
    private:
     std::vector<Rectangle> panels_;
     std::vector<std::pair<Rectangle, std::uint32_t>> rows_;
+    std::size_t speciesScroll_ = 0;
 };
 
 }  // namespace alife::render

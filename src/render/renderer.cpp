@@ -123,6 +123,9 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
     const float dt = GetFrameTime();
     clock_ += dt;
     const int sw = GetScreenWidth(), sh = GetScreenHeight();
+    const Vector2 mouse = GetMousePosition();
+    const bool scrollingSpecies =
+        vs.hud && hud_.scrollSpecies(GetMouseWheelMove(), mouse, sh, snap.species.size(), snap.selected.valid);
 
     if (IsKeyPressed(KEY_SPACE)) vs.paused = !vs.paused;
     if (IsKeyPressed(KEY_ONE)) vs.color = ColorMode::Species;
@@ -173,7 +176,6 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
     }
 
     // click = press and release without much movement
-    const Vector2 mouse = GetMousePosition();
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) pressPos_ = mouse;
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) &&
         std::hypot(mouse.x - pressPos_.x, mouse.y - pressPos_.y) < 5.0f) {
@@ -194,7 +196,7 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
     }
 
     if (IsWindowResized()) camera_.onResize(snap.worldW, snap.worldH, sw, sh);
-    camera_.update(dt);
+    camera_.update(dt, !scrollingSpecies);
     if (camera_.interrupted()) vs.follow = false;
 
     // the selected organism died

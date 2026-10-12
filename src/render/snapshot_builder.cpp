@@ -19,7 +19,7 @@ AgentVis makeVis(const World& w, std::uint32_t i) {
     a.def = p.defense[i];
     a.speed = (p.vMax[i] - 8.0f) / (vTop - 8.0f);
     a.sense = (p.senseR[i] - 14.0f) / 34.0f;
-    a.eta = (p.eta[i] - 0.3f) / 0.7f;
+    a.eta = 0.35f + 0.65f * p.eta[i];
     a.repThr = (p.repThresh[i] - 0.55f) / 0.4f;
     a.age01 = std::clamp(p.age[i] / w.cfg.eco.lifespan, 0.0f, 1.0f);
     a.species = p.species[i];
@@ -49,6 +49,10 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
     out.season = w.season;
     out.births = w.stats.births;
     out.kills = w.stats.kills;
+    out.plantEnergy = w.stats.plantEnergy;
+    out.animalEnergy = w.stats.animalEnergy;
+    out.energyBalanceError =
+        w.energyInventory() + w.stats.dissipatedEnergy - w.stats.initialEnergy - w.stats.externalEnergy;
 
     out.agents.clear();
     out.agents.reserve(n);
@@ -59,7 +63,7 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
     for (std::uint32_t i = 0; i < n; ++i) ++counts[p.species[i]];
     out.species.clear();
     for (const auto& s : w.species.all()) {
-        if (!s.alive || counts[s.id] == 0) continue;
+        if (counts[s.id] == 0) continue;
         SpeciesVis v;
         v.id = s.id; v.parent = s.parent; v.count = counts[s.id];
         v.fullName = s.fullName(); v.shortName = s.shortName();
@@ -79,6 +83,8 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
         if (rate < 0.5f || pred >= counts.size() || prey >= counts.size() || !counts[pred] || !counts[prey]) continue;
         out.edges.push_back({pred, prey, rate});
     }
+    std::sort(out.edges.begin(), out.edges.end(),
+              [](const EdgeVis& a, const EdgeVis& b) { return a.rate > b.rate; });
 
     out.events.clear();
     for (const auto& e : w.events) {
@@ -115,6 +121,8 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
             s.energyAbs = p.energy[i];
             s.eMax = p.eMax[i];
             s.ageSec = p.age[i];
+            s.plantIntake = p.plantIntake[i];
+            s.animalIntake = p.animalIntake[i];
             s.generation = p.generation[i];
             s.parentId = p.parent[i];
             s.units.reserve(p.circuit[i].size());
@@ -130,8 +138,8 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
                 if (u < p.circuitState[i].size()) unit.value = p.circuitState[i][u];
                 s.units.push_back(unit);
             }
-            s.outputs[0] = p.ax[i] / 1.5f;
-            s.outputs[1] = p.ay[i] / 1.5f;
+            s.outputs[0] = p.ax[i];
+            s.outputs[1] = p.ay[i];
             s.outputs[2] = (p.harvestGain[i] - 1.0f) / 0.75f;
             s.outputs[3] = p.resourceBias[i];
             s.outputs[4] = p.protection[i];
@@ -139,11 +147,13 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
                 if (p.id[j] == p.preyId[i]) { s.hasPrey = true; s.preyX = out.agents[j].x; s.preyY = out.agents[j].y; }
                 if (p.id[j] == p.threatId[i]) { s.hasThreat = true; s.threatX = out.agents[j].x; s.threatY = out.agents[j].y; }
             }
-            if (s.hasThreat && s.outputs[4] > 0.3f) s.state = "defending";
-            else if (s.hasPrey && s.a.aggr > 0.2f) s.state = "hunting";
-            else if (s.a.energy > 0.85f) s.state = "satiated";
-            else if (s.a.aggr < 0.35f) s.state = "grazing";
-            else s.state = "foraging";
+            switch (static_cast<AgentAction>(p.action[i])) {
+                case AgentAction::Forage: s.state = "FORAGING · tracking food gradients"; break;
+                case AgentAction::Hunt: s.state = "HUNTING · pursuing prey"; break;
+                case AgentAction::Evade: s.state = "EVADING · avoiding threat"; break;
+                case AgentAction::Rest: s.state = "RESTING · energy replete"; break;
+                default: s.state = "EXPLORING · searching"; break;
+            }
             break;
         }
     }

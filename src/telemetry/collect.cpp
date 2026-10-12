@@ -11,13 +11,15 @@ Telemetry collect(const World& w) {
     t.tick = w.tick;
     t.population = w.pool.count();
 
-    std::vector<std::uint32_t> counts;
-    for (const auto& s : w.species.all()) {
-        if (!s.alive || s.count == 0) continue;
-        counts.push_back(s.count);
-        if (s.count >= genetics::kEstablished) ++t.speciesCount;
+    std::vector<std::uint32_t> counts(w.species.all().size(), 0);
+    for (std::uint32_t i = 0; i < w.pool.count(); ++i) ++counts[w.pool.species[i]];
+    std::vector<std::uint32_t> extant;
+    for (const auto count : counts) {
+        if (count == 0) continue;
+        extant.push_back(count);
+        if (count >= genetics::kEstablished) ++t.speciesCount;
     }
-    t.shannonBits = static_cast<float>(math::shannonBits(counts));
+    t.shannonBits = static_cast<float>(math::shannonBits(extant));
 
     double e = 0.0;
     double units = 0.0;

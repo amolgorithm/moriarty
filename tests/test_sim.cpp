@@ -7,6 +7,7 @@
 #include "alife/concurrency/thread_pool.hpp"
 #include "alife/core/world.hpp"
 #include "alife/sim/scheduler.hpp"
+#include "alife/telemetry/collect.hpp"
 
 using namespace alife;
 
@@ -32,6 +33,9 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
     CHECK(w.pool.circuitState.size() == n);
     CHECK(w.pool.wx.size() == n);
     CHECK(w.pool.preyId.size() == n);
+    CHECK(w.pool.plantIntake.size() == n);
+    CHECK(w.pool.animalIntake.size() == n);
+    CHECK(w.pool.action.size() == n);
 
     std::unordered_set<std::uint64_t> ids;
     for (std::uint32_t i = 0; i < n; ++i) {
@@ -61,6 +65,8 @@ TEST_CASE("same seed, same universe") {
     CHECK(ea == doctest::Approx(eb));
     CHECK(xa == doctest::Approx(xb));
     CHECK(a.stats.births == b.stats.births);
+    CHECK(a.stats.plantEnergy == doctest::Approx(b.stats.plantEnergy));
+    CHECK(a.stats.animalEnergy == doctest::Approx(b.stats.animalEnergy));
 }
 
 TEST_CASE("different seeds diverge") {
@@ -78,9 +84,24 @@ TEST_CASE("ecosystem is alive after two simulated minutes: births, kills and sev
     CHECK(w.pool.count() > 100);
     CHECK(w.stats.births > 100);
     CHECK(w.stats.kills > 0);
+    CHECK(w.stats.plantEnergy > 0.0);
+    CHECK(w.stats.animalEnergy > 0.0);
+    const double balance = w.energyInventory() + w.stats.dissipatedEnergy -
+                           w.stats.initialEnergy - w.stats.externalEnergy;
+    CHECK(std::abs(balance) < w.stats.initialEnergy * 1e-4);
     std::size_t alive = 0;
     for (const auto& s : w.species.all()) alive += s.alive && s.count >= genetics::kEstablished;
     CHECK(alive >= 3);
+}
+
+TEST_CASE("telemetry counts established species from the live population") {
+    World w;
+    run(w, 101);
+    std::vector<std::uint32_t> counts(w.species.all().size(), 0);
+    for (std::uint32_t i = 0; i < w.pool.count(); ++i) ++counts[w.pool.species[i]];
+    std::uint32_t expected = 0;
+    for (const auto count : counts) expected += count >= genetics::kEstablished;
+    CHECK(telemetry::collect(w).speciesCount == expected);
 }
 
 TEST_CASE("environment noise is not periodic: seasons drift") {

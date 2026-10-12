@@ -33,11 +33,11 @@ void CameraController::flyTo(float x, float y, float zoom, int sw, int sh, float
     userMoved_ = true;
 }
 
-void CameraController::update(float dt) {
+void CameraController::update(float dt, bool allowWheelZoom) {
     moved_ = false;
     interrupted_ = false;
 
-    const float wheel = GetMouseWheelMove();
+    const float wheel = allowWheelZoom ? GetMouseWheelMove() : 0.0f;
     if (wheel != 0.0f) {
         if (!goalActive_) {
             // zoom toward the cursor: pin the world point under the mouse

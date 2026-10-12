@@ -12,7 +12,7 @@ class CameraController {
     void flyTo(float x, float y, float zoom, int screenW, int screenH, float horizontalShift = 0.0f);
     void setGoal(float x, float y) { goal_ = {x, y}; }
     void setFollow(bool on) { following_ = on; if (!on) goalActive_ = false; }
-    void update(float dt);
+    void update(float dt, bool allowWheelZoom = true);
 
     const Camera2D& get() const noexcept { return cam_; }
     float zoom() const noexcept { return cam_.zoom; }

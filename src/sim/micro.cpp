@@ -18,7 +18,7 @@ void microStep(World& w, ThreadPool& tp) {
 
     constexpr float gamma = 1.2f;   // drag
     constexpr float tauW = 2.0f;    // wander correlation time
-    const math::EulerMaruyama integ{gamma, 8.0f};
+    const math::EulerMaruyama integ{gamma, 5.0f};
     const float ouK = std::sqrt(2.0f * dt / tauW);
 
     tp.parallelFor(p.count(), 1024, [&](std::size_t b, std::size_t e) {
@@ -44,7 +44,8 @@ void microStep(World& w, ThreadPool& tp) {
                 }
             });
 
-            const float ex = 0.7f * p.explore[i];
+            const float intent = std::hypot(p.ax[i], p.ay[i]);
+            const float ex = p.explore[i] * (0.12f + 0.25f / (1.0f + intent));
             const float g = gamma * p.vMax[i];
             const float fx = (p.ax[i] + ex * p.wx[i] + 1.5f * sx) * g;
             const float fy = (p.ay[i] + ex * p.wy[i] + 1.5f * sy) * g;

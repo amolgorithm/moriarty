@@ -24,6 +24,21 @@ void panel(Rectangle r) {
     DrawRectangleRoundedLinesEx(r, 0.04f, 8, 1.0f, col(theme::textDim, 45));
 }
 
+int visibleSpeciesRows(int screenHeight, bool hasSelection) {
+    constexpr float listTop = 176.0f;
+    const float bottom = std::min(static_cast<float>(screenHeight) - 40.0f,
+                                  hasSelection ? static_cast<float>(screenHeight) - 422.0f
+                                               : static_cast<float>(screenHeight) - 40.0f);
+    return std::max(1, static_cast<int>((bottom - listTop - 30.0f) / 22.0f));
+}
+
+Rectangle speciesViewport(int screenHeight, bool hasSelection, int rows) {
+    const float bottom = std::min(static_cast<float>(screenHeight) - 40.0f,
+                                  hasSelection ? static_cast<float>(screenHeight) - 422.0f
+                                               : static_cast<float>(screenHeight) - 40.0f);
+    return {24.0f, 176.0f, 254.0f, std::max(22.0f, std::min(bottom - 176.0f, rows * 22.0f))};
+}
+
 // horizontal 0..1 bar with a label on the left and the value on the right
 void bar(const Font& f, const char* name, float v, float x, float y, float w, Color c) {
     label(f, name, x, y, 12, col(theme::textDim));
@@ -129,6 +144,25 @@ std::int64_t Hud::speciesRowAt(Vector2 p) const {
     return -1;
 }
 
+bool Hud::scrollSpecies(float wheel, Vector2 mouse, int screenHeight, std::size_t speciesCount,
+                        bool hasSelection) {
+    const int visible = visibleSpeciesRows(screenHeight, hasSelection);
+    const Rectangle viewport = speciesViewport(screenHeight, hasSelection, visible);
+    const std::size_t maxScroll = speciesCount > static_cast<std::size_t>(visible)
+                                      ? speciesCount - static_cast<std::size_t>(visible)
+                                      : 0;
+    speciesScroll_ = std::min(speciesScroll_, maxScroll);
+    if (!CheckCollisionPointRec(mouse, viewport)) return false;
+    if (wheel != 0.0f) {
+        int movement = static_cast<int>(std::round(wheel * 3.0f));
+        if (movement == 0) movement = wheel > 0.0f ? 1 : -1;
+        const auto next = static_cast<long long>(speciesScroll_) - movement;
+        speciesScroll_ = static_cast<std::size_t>(std::clamp(
+            next, 0ll, static_cast<long long>(maxScroll)));
+    }
+    return true;
+}
+
 void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::TelemetryHistory& hist,
                const ViewState& vs, int fps, int sw, int sh) {
     panels_.clear();
@@ -139,7 +173,12 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     const float M = 16.0f;
 
     // ---------------- left: stats + species list ----------------
-    const int nRows = static_cast<int>(std::min<std::size_t>(11, snap.species.size()));
+    const int visibleRows = visibleSpeciesRows(sh, snap.selected.valid);
+    const int nRows = static_cast<int>(std::min<std::size_t>(
+        static_cast<std::size_t>(visibleRows), snap.species.size()));
+    speciesScroll_ = std::min(speciesScroll_, snap.species.size() > static_cast<std::size_t>(visibleRows)
+                                                   ? snap.species.size() - static_cast<std::size_t>(visibleRows)
+                                                   : 0);
     const Rectangle sp{M, M, 270, 166.0f + static_cast<float>(nRows) * 22.0f + 22.0f};
     panel(sp);
     panels_.push_back(sp);
@@ -148,7 +187,7 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     label(font, buf, sp.x + 14, sp.y + 38, 12, col(vs.paused ? theme::accentSoft : theme::textDim));
 
     struct Row { const char* k; char v[40]; };
-    Row rows[4] = {{"population", {}}, {"species", {}}, {"diversity", {}}, {"births / kills", {}}};
+    Row rows[4] = {{"population", {}}, {"established (8+)", {}}, {"diversity", {}}, {"births / kills", {}}};
     std::snprintf(rows[0].v, sizeof rows[0].v, "%zu", snap.agents.size());
     std::uint32_t est = 0;
     for (const auto& s : snap.species) est += s.established;
@@ -162,10 +201,14 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         rightLabel(font, rows[i].v, sp.x + sp.width - 14, y, 13, col(theme::text));
     }
 
-    label(font, "species  (click to focus, tab to cycle)", sp.x + 14, sp.y + 140, 11, col(theme::textDim, 170));
+    std::snprintf(buf, sizeof buf, "species  %zu extant  ·  %u established (8+)",
+                  snap.species.size(), est);
+    label(font, buf, sp.x + 14, sp.y + 140, 10, col(theme::textDim, 190));
+    label(font, "click to focus · wheel to scroll", sp.x + 14, sp.y + 151, 9,
+          col(theme::textDim, 150));
     const std::uint32_t maxCount = snap.species.empty() ? 1 : snap.species.front().count;
     for (int i = 0; i < nRows; ++i) {
-        const SpeciesVis& s = snap.species[static_cast<std::size_t>(i)];
+        const SpeciesVis& s = snap.species[speciesScroll_ + static_cast<std::size_t>(i)];
         const Rectangle row{sp.x + 8, sp.y + 160 + static_cast<float>(i) * 22.0f, sp.width - 16, 20};
         const float frac = static_cast<float>(s.count) / static_cast<float>(maxCount);
         DrawRectangleRec({row.x, row.y, row.width * frac, row.height}, col(s.color, 38));
@@ -178,9 +221,11 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         rightLabel(font, buf, row.x + row.width - 6, row.y + 3, 13, col(theme::text));
         rows_.push_back({row, s.id});
     }
-    if (snap.species.size() > static_cast<std::size_t>(nRows)) {
-        std::snprintf(buf, sizeof buf, "+ %zu more", snap.species.size() - static_cast<std::size_t>(nRows));
-        label(font, buf, sp.x + 14, sp.y + sp.height - 16, 11, col(theme::textDim, 170));
+    if (!snap.species.empty()) {
+        std::snprintf(buf, sizeof buf, "%zu-%zu of %zu", speciesScroll_ + 1,
+                      speciesScroll_ + static_cast<std::size_t>(nRows), snap.species.size());
+        rightLabel(font, buf, sp.x + sp.width - 14, sp.y + sp.height - 16, 10,
+                   col(theme::textDim, 170));
     }
 
     // ---------------- right top: food web ----------------
@@ -188,12 +233,34 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     panel(fw);
     panels_.push_back(fw);
     label(font, "interactions", fw.x + 14, fw.y + 12, 13, col(theme::accent));
-    label(font, "arrows point from hunter to prey", fw.x + 14, fw.y + fw.height - 18, 11, col(theme::textDim, 170));
+    label(font, "recent kills · arrows point hunter → prey", fw.x + 14, fw.y + fw.height - 18, 10,
+          col(theme::textDim, 170));
+    std::snprintf(buf, sizeof buf, "energy gained · food fields %.0f   prey %.0f",
+                  snap.plantEnergy, snap.animalEnergy);
+    label(font, buf, fw.x + 14, fw.y + 31, 10, col(theme::textDim));
+    std::snprintf(buf, sizeof buf, "energy balance Δ: %.3g", snap.energyBalanceError);
+    label(font, buf, fw.x + 14, fw.y + 45, 10, col(theme::textDim));
+    label(font, "field: green=fine food · amber=coarse food · rust=heat", fw.x + 14, fw.y + 59, 9,
+          col(theme::textDim, 190));
     {
         std::vector<const SpeciesVis*> nodes;
-        for (const auto& s : snap.species)
-            if (s.established && nodes.size() < 8) nodes.push_back(&s);
-        const Vector2 c{fw.x + fw.width * 0.5f, fw.y + 124};
+        auto addNode = [&](std::uint32_t id) {
+            if (nodes.size() >= 8 ||
+                std::any_of(nodes.begin(), nodes.end(), [id](const SpeciesVis* node) { return node->id == id; }))
+                return;
+            const auto found = std::find_if(snap.species.begin(), snap.species.end(),
+                                            [id](const SpeciesVis& species) { return species.id == id; });
+            if (found != snap.species.end() && found->established) nodes.push_back(&*found);
+        };
+        for (const auto& edge : snap.edges) {
+            addNode(edge.pred);
+            addNode(edge.prey);
+        }
+        for (const auto& s : snap.species) {
+            if (nodes.size() >= 8) break;
+            if (s.established) addNode(s.id);
+        }
+        const Vector2 c{fw.x + fw.width * 0.5f, fw.y + 132};
         std::vector<Vector2> pos(nodes.size());
         for (std::size_t i = 0; i < nodes.size(); ++i) {
             const float a = -1.5708f + 6.28318f * static_cast<float>(i) / static_cast<float>(nodes.size());
@@ -207,9 +274,18 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
                 if (nodes[i]->id == e.pred) ia = static_cast<int>(i);
                 if (nodes[i]->id == e.prey) ib = static_cast<int>(i);
             }
-            if (ia < 0 || ib < 0 || ia == ib) continue;
+            if (ia < 0 || ib < 0) continue;
             any = true;
             const Vector2 a = pos[static_cast<std::size_t>(ia)], b = pos[static_cast<std::size_t>(ib)];
+            if (ia == ib) {
+                const float radius = nodeR(nodes[static_cast<std::size_t>(ia)]) + 5.0f;
+                DrawRing(a, radius - 1.0f, radius + 1.0f, 25.0f, 325.0f, 28,
+                         col(nodes[static_cast<std::size_t>(ia)]->color, 210));
+                DrawTriangle({a.x + radius, a.y}, {a.x + radius - 6.0f, a.y - 3.5f},
+                             {a.x + radius - 6.0f, a.y + 3.5f},
+                             col(nodes[static_cast<std::size_t>(ia)]->color, 230));
+                continue;
+            }
             const float dx = b.x - a.x, dy = b.y - a.y, d = std::max(1.0f, std::hypot(dx, dy));
             const float ra = nodeR(nodes[static_cast<std::size_t>(ia)]) + 2, rb = nodeR(nodes[static_cast<std::size_t>(ib)]) + 3;
             arrow({a.x + dx / d * ra, a.y + dy / d * ra}, {b.x - dx / d * rb, b.y - dy / d * rb},
@@ -241,7 +317,8 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     std::snprintf(v3, sizeof v3, "%.1f", static_cast<double>(t.meanCircuitUnits));
     chart(font, {cp.x + pad, cp.y + pad, cw, ch}, {"population", hist.population, col(theme::accent), v0, false, true}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 2 * pad + ch, cw, ch}, {"diversity", hist.entropy, col(speciesColor(2)), v1, true, false}, hist.markers);
-    chart(font, {cp.x + pad, cp.y + 3 * pad + 2 * ch, cw, ch}, {"species", hist.species, col(speciesColor(3)), v2, true, false}, hist.markers);
+    chart(font, {cp.x + pad, cp.y + 3 * pad + 2 * ch, cw, ch},
+          {"established species (8+)", hist.species, col(speciesColor(3)), v2, true, false}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 4 * pad + 3 * ch, cw, ch},
           {"mean computational units", hist.complexity, col({154, 174, 124}), v3, false, false}, hist.markers);
 
@@ -276,17 +353,20 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         bar(font, "senses", s.a.sense, x, y, w, tc); y += 16;
         bar(font, "aggression", s.a.aggr, x, y, w, tc); y += 16;
         bar(font, "defense", s.a.def, x, y, w, tc); y += 16;
-        bar(font, "efficiency", s.a.eta, x, y, w, tc); y += 24;
-        label(font, "circuit outputs (right now)", x, y, 11, col(theme::textDim, 190)); y += 16;
-        signedBar(font, "drive x", s.outputs[0], x, y, w); y += 16;
-        signedBar(font, "drive y", s.outputs[1], x, y, w); y += 16;
+        label(font, "food-field energy gained since birth", x, y, 10, col(theme::textDim));
+        std::snprintf(buf, sizeof buf, "%.1f", static_cast<double>(s.plantIntake));
+        rightLabel(font, buf, x + w, y, 10, col(theme::text)); y += 13;
+        label(font, "prey energy gained since birth", x, y, 10, col(theme::textDim));
+        std::snprintf(buf, sizeof buf, "%.1f", static_cast<double>(s.animalIntake));
+        rightLabel(font, buf, x + w, y, 10, col(theme::text)); y += 16;
+        bar(font, "assimilation yield", s.a.eta, x, y, w, tc); y += 24;
+        label(font, "current movement intent + controller outputs", x, y, 10, col(theme::textDim, 190)); y += 16;
+        signedBar(font, "intent x", s.outputs[0], x, y, w); y += 16;
+        signedBar(font, "intent y", s.outputs[1], x, y, w); y += 16;
         signedBar(font, "uptake", s.outputs[2], x, y, w); y += 16;
         signedBar(font, "resource", s.outputs[3], x, y, w); y += 16;
         signedBar(font, "defense", s.outputs[4], x, y, w);
         std::snprintf(buf, sizeof buf, "%zu computational units  |  U microscope",
-                      s.units.size());
-        label(font, buf, x, ip.y + ip.height - 14, 10, col(theme::accent, 210));
-        std::snprintf(buf, sizeof buf, "%zu computational units  |  U microscope  |  click follows",
                       s.units.size());
         label(font, buf, x, ip.y + ip.height - 14, 10, col(theme::accent, 210));
     }

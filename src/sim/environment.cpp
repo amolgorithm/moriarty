@@ -69,13 +69,21 @@ void stepEnvironment(World& w, float dt) {
                 w.Keff[ch].v[i] = ke;
                 const float r = w.R[ch].v[i];
                 const float growth = eco.regrow * std::max(r, 0.04f * ke) * (1.0f - r / ke) / heat;
-                w.R[ch].v[i] = std::max(0.0f, r + dt * growth);
+                const float updated = std::max(0.0f, r + dt * growth);
+                const double deltaEnergy = static_cast<double>(updated - r) * eco.energyPerR;
+                if (deltaEnergy >= 0.0)
+                    w.stats.externalEnergy += deltaEnergy;
+                else
+                    w.stats.dissipatedEnergy -= deltaEnergy;
+                w.R[ch].v[i] = updated;
             }
         }
     }
 
     // heat: diffusion + decay
     const int fw = w.Q.w, fh = w.Q.h;
+    double heatBefore = 0.0;
+    for (float q : w.Q.v) heatBefore += q;
     for (int y = 0; y < fh; ++y)
         for (int x = 0; x < fw; ++x) {
             const float q = w.Q.at(x, y);
@@ -84,6 +92,13 @@ void stepEnvironment(World& w, float dt) {
                 std::max(0.0f, q + dt * (eco.heatDiffusion * lap - eco.heatDecay * q));
         }
     std::swap(w.Q.v, w.Qtmp.v);
+    double heatAfter = 0.0;
+    for (float q : w.Q.v) heatAfter += q;
+    const double heatDelta = heatAfter - heatBefore;
+    if (heatDelta >= 0.0)
+        w.stats.externalEnergy += heatDelta;
+    else
+        w.stats.dissipatedEnergy -= heatDelta;
 }
 
 }  // namespace alife::sim

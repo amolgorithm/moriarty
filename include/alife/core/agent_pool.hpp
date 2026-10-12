@@ -7,6 +7,8 @@
 
 namespace alife {
 
+enum class AgentAction : std::uint8_t { Explore, Forage, Hunt, Evade, Rest };
+
 // Hot columns, touched every micro tick. Double-buffered: read one, write the other.
 struct Kinematics {
     avec<float> px, py, vx, vy;
@@ -25,6 +27,8 @@ struct AgentPool {
     avec<float> wx, wy;      // OU wander state (colored noise)
     avec<float> ax, ay;      // steering command from the controller
     avec<float> harvestGain, resourceBias, protection;
+    avec<float> plantIntake, animalIntake;
+    avec<std::uint8_t> action;
     avec<float> heading;     // smoothed facing, for rendering
     avec<std::uint32_t> cell, species, generation;
 

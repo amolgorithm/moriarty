@@ -22,6 +22,9 @@ TEST_CASE("spawn and swap-remove keep every column the same length") {
     CHECK(p.species.size() == 4);
     CHECK(p.circuit.size() == 4);
     CHECK(p.circuitState.size() == 4);
+    CHECK(p.plantIntake.size() == 4);
+    CHECK(p.animalIntake.size() == 4);
+    CHECK(p.action.size() == 4);
 
     // last agent moved into slot 1, genome row and id came with it
     CHECK(p.id[1] == lastId);
@@ -36,6 +39,9 @@ TEST_CASE("removing the only agent empties the pool") {
     CHECK(p.genome.empty());
     CHECK(p.circuit.empty());
     CHECK(p.circuitState.empty());
+    CHECK(p.plantIntake.empty());
+    CHECK(p.animalIntake.empty());
+    CHECK(p.action.empty());
 }
 
 TEST_CASE("kinematics buffers swap") {

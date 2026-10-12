@@ -60,7 +60,7 @@ class SpeciesTable {
     static void project(const float* genome, std::span<const UnitGene> circuit, float* out);
     static float distance(const float* projected, const std::array<float, kDistGenes>& ex);
 
-    float delta = 0.07f;
+    float delta = 0.05f;
 
    private:
     std::vector<Species> sp_;

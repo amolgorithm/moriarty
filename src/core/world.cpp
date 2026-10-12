@@ -25,6 +25,7 @@ World::World(const SimConfig& c) : cfg(c), grid(c.worldW, c.worldH, c.cellSize) 
     buildTerrain(1);
     initFlow();
     seedPopulation();
+    stats.initialEnergy = energyInventory();
 
     CounterRng r(cfg.seed, 0, 0x7AC);
     tracerX.resize(700);
@@ -120,6 +121,7 @@ std::uint32_t World::addAgent(const float* genome, float x, float y, float energ
 void World::seedPopulation() {
     float base[kGenomeLen];
     std::fill(base, base + kGenomeLen, 0.5f);
+    base[genetics::kAggr] = 0.18f;
     base[genetics::kMutRate] = 0.45f;
     const genetics::Circuit ancestorCircuit = genetics::makeSeedCircuit();
     const std::uint32_t ancestor = species.addFounder(base, "Vita", "communis", 30.0f, 0, 0, ancestorCircuit);
@@ -129,6 +131,7 @@ void World::seedPopulation() {
         float g[kGenomeLen];
         for (std::size_t k = 0; k < kGenomeLen; ++k)
             g[k] = std::clamp(base[k] + 0.12f * rng.normal(), 0.0f, 1.0f);
+        g[genetics::kAggr] = std::clamp(base[genetics::kAggr] + 0.08f * rng.normal(), 0.0f, 1.0f);
         g[genetics::kMutRate] = std::clamp(0.45f + 0.12f * rng.normal(), 0.05f, 1.0f);
 
         const float x = rng.uniform() * cfg.worldW;
@@ -136,8 +139,9 @@ void World::seedPopulation() {
         const auto ph = genetics::decode(g, cfg.eco.vTop);
         genetics::Circuit circuit = ancestorCircuit;
         genetics::mutateCircuit(circuit, 0.08f, rng);
+        const std::uint32_t initialSpecies = species.classify(g, circuit, ancestor, 0, rng);
         const std::uint32_t idx = addAgent(g, x, y, ph.eMax * (0.4f + 0.4f * rng.uniform()),
-                                           ancestor, 0, 0, circuit);
+                                           initialSpecies, 0, 0, circuit);
         pool.age[idx] = rng.uniform() * 35.0f;
         pool.heading[idx] = rng.uniform() * kTwoPi;
     }

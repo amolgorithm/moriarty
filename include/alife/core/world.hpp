@@ -64,6 +64,8 @@ struct Event {
 
 struct Counters {
     std::uint64_t births = 0, kills = 0, starved = 0, senescent = 0;
+    double plantEnergy = 0.0, animalEnergy = 0.0;
+    double initialEnergy = 0.0, externalEnergy = 0.0, dissipatedEnergy = 0.0;
 };
 
 struct World {
@@ -99,6 +101,14 @@ struct World {
     explicit World(const SimConfig& c = {});
 
     std::pair<float, float> flowAt(float x, float y) const noexcept;
+    double energyInventory() const noexcept {
+        double energy = 0.0;
+        for (const auto& field : R)
+            for (float value : field.v) energy += static_cast<double>(value) * cfg.eco.energyPerR;
+        for (float value : Q.v) energy += value;
+        for (float value : pool.energy) energy += value;
+        return energy;
+    }
     std::uint32_t addAgent(const float* genome, float x, float y, float energy, std::uint32_t species,
                            std::uint64_t parent, std::uint32_t generation,
                            const genetics::Circuit& circuit = {});

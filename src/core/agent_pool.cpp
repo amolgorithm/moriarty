@@ -14,6 +14,8 @@ void AgentPool::forEachColumn(F&& f) {
     f(radius, 5.0f); f(mass, 1.5f); f(defense, z); f(eMax, 60.0f); f(explore, 0.5f);
     f(wx, z); f(wy, z); f(ax, z); f(ay, z);
     f(harvestGain, 1.0f); f(resourceBias, z); f(protection, z); f(heading, z);
+    f(plantIntake, z); f(animalIntake, z);
+    f(action, static_cast<std::uint8_t>(AgentAction::Explore));
     f(cell, z32); f(species, z32); f(generation, z32);
     f(id, z64); f(parent, z64); f(birthTick, z64); f(preyId, z64); f(threatId, z64);
 }
