@@ -9,9 +9,9 @@ TEST_CASE("spawn and swap-remove keep every column the same length") {
     for (int i = 0; i < 5; ++i) p.spawn(static_cast<float>(i), 0.0f);
     CHECK(p.count() == 5);
     CHECK(p.genome.size() == 5 * kGenomeLen);
-    CHECK(p.circuit.size() == 5);
-    CHECK(p.circuitWeights.size() == 5);
-    CHECK(p.circuitEligibility.size() == 5);
+    CHECK(p.program.size() == 5);
+    CHECK(p.vmState.size() == 5);
+    CHECK(p.vmExecuted.size() == 5);
 
     p.genome[4 * kGenomeLen] = 99.0f;  // tag the last agent
     const auto lastId = p.id[4];
@@ -23,10 +23,9 @@ TEST_CASE("spawn and swap-remove keep every column the same length") {
     CHECK(p.genome.size() == 4 * kGenomeLen);
     CHECK(p.species.size() == 4);
     CHECK(p.bodyEnergy.size() == 4);
-    CHECK(p.circuit.size() == 4);
-    CHECK(p.circuitState.size() == 4);
-    CHECK(p.circuitWeights.size() == 4);
-    CHECK(p.circuitEligibility.size() == 4);
+    CHECK(p.program.size() == 4);
+    CHECK(p.vmState.size() == 4);
+    CHECK(p.vmExecuted.size() == 4);
     CHECK(p.plantIntake.size() == 4);
     CHECK(p.animalIntake.size() == 4);
     CHECK(p.action.size() == 4);
@@ -42,10 +41,9 @@ TEST_CASE("removing the only agent empties the pool") {
     p.swapRemove(0);
     CHECK(p.count() == 0);
     CHECK(p.genome.empty());
-    CHECK(p.circuit.empty());
-    CHECK(p.circuitState.empty());
-    CHECK(p.circuitWeights.empty());
-    CHECK(p.circuitEligibility.empty());
+    CHECK(p.program.empty());
+    CHECK(p.vmState.empty());
+    CHECK(p.vmExecuted.empty());
     CHECK(p.plantIntake.empty());
     CHECK(p.animalIntake.empty());
     CHECK(p.action.empty());

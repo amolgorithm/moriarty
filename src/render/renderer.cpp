@@ -14,6 +14,13 @@ namespace alife::render {
 namespace {
 
 constexpr float kTau = 6.28318530718f;
+constexpr Rgb kInstructionColors[] = {
+    {114, 177, 155}, {125, 164, 216}, {199, 148, 218}, {224, 151, 111},
+    {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124},
+    {181, 151, 211}, {208, 126, 165}, {110, 173, 190}, {224, 177, 100},
+    {187, 148, 218}, {116, 190, 142}, {202, 143, 187}, {120, 164, 203},
+    {218, 132, 93}, {234, 206, 144}};
+static_assert(std::size(kInstructionColors) == genetics::kVmOpCount);
 
 Color col(Rgb c, unsigned char a = 255) { return Color{c.r, c.g, c.b, a}; }
 Rgb scale(Rgb c, float k) {
@@ -307,7 +314,7 @@ void Renderer::drawWorld(const RenderSnapshot& snap, const ViewState& vs) {
 void Renderer::drawBody(const AgentVis& a, Rgb c, float alpha, int lod) {
     const float cs = std::cos(a.heading), sn = std::sin(a.heading);
     const float r = a.r;
-    const float A = 1.0f + std::min(0.65f, 0.12f * std::log2(static_cast<float>(a.circuitUnits) + 1.0f));
+    const float A = 1.0f + std::min(0.65f, 0.12f * std::log2(static_cast<float>(a.programLength) + 1.0f));
     const float ea = r * std::sqrt(A), eb = r / std::sqrt(A);
     const unsigned char al = static_cast<unsigned char>(255.0f * alpha);
     const float zoom = camera_.zoom();
@@ -320,22 +327,19 @@ void Renderer::drawBody(const AgentVis& a, Rgb c, float alpha, int lod) {
     fillEllipse(a.x, a.y, ea * pulse * 0.8f, eb * pulse * 0.8f, cs, sn, seg, col(fill, al));
     if (lod < 3) return;
 
-    static constexpr Rgb kUnitColors[] = {
-        {114, 177, 155}, {125, 164, 216}, {199, 148, 218}, {224, 151, 111},
-        {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124},
-        {181, 151, 211}};
-    const float unitRadius = std::max(r * (0.19f / std::sqrt(std::max(1.0f, static_cast<float>(a.circuitUnits)))),
+    const float unitRadius = std::max(r * (0.19f / std::sqrt(std::max(1.0f, static_cast<float>(a.programLength)))),
                                      0.8f / zoom);
     std::uint64_t ordinal = 0;
-    for (std::size_t op = 0; op < a.unitOps.size(); ++op) {
-        for (std::uint16_t unit = 0; unit < a.unitOps[op]; ++unit, ++ordinal) {
+    for (std::size_t op = 0; op < a.opCounts.size(); ++op) {
+        for (std::uint16_t unit = 0; unit < a.opCounts[op]; ++unit, ++ordinal) {
             float u = 2.0f * hash01(a.id, ordinal * 2 + 41) - 1.0f;
             float v = 2.0f * hash01(a.id, ordinal * 2 + 42) - 1.0f;
             const float d2 = u * u + v * v;
             if (d2 > 0.85f) { u *= 0.72f; v *= 0.72f; }
             const Vector2 point = toWorld(a.x, a.y, cs, sn, ea * u * 0.65f, eb * v * 0.65f);
-            const float active = 0.55f + 0.45f * a.circuitActivity;
-            sprite(point.x, point.y, unitRadius, kUnitColors[op],
+            const float active = 0.45f + 0.55f *
+                static_cast<float>(a.executedInstructions) / std::max(1.0f, static_cast<float>(a.programLength));
+            sprite(point.x, point.y, unitRadius, kInstructionColors[op],
                    static_cast<unsigned char>(180.0f * alpha * active));
         }
     }
@@ -387,7 +391,7 @@ void Renderer::drawSelection(const RenderSnapshot& snap) {
     if (s.hasThreat) DrawLineEx({s.a.x, s.a.y}, {s.threatX, s.threatY}, 1.6f * px, col({236, 196, 92}, 190));
 }
 
-void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
+void Renderer::drawProgramInspector(const RenderSnapshot& snap) {
     if (!snap.selected.valid || snap.selected.units.empty()) return;
     const auto& units = snap.selected.units;
     const float sw = static_cast<float>(GetScreenWidth());
@@ -399,20 +403,22 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
     DrawRectangleRoundedLinesEx(panel, 0.025f, 8, 1.5f, col(theme::accent, 210));
 
     char title[160];
-    std::snprintf(title, sizeof title, "COMPUTATIONAL SUBUNITS  |  %zu units  |  organism #%llu",
+    std::snprintf(title, sizeof title, "VIRTUAL GENOME  |  %zu instructions  |  organism #%llu",
                   units.size(), static_cast<unsigned long long>(snap.selected.a.id));
     DrawTextEx(font_, title, {panel.x + 16.0f, panel.y + 12.0f}, 18.0f, 1.0f, col(theme::accent));
     DrawTextEx(font_, "U close  |  S00-01 food  S02-03 prey  S04-05 threat  S06-07 kin  S08 energy",
                {panel.x + 16.0f, panel.y + 36.0f}, 9.0f, 1.0f, col(theme::textDim));
     DrawTextEx(font_, "S09 mix  S10-11 current  S12 group  S13 alignment  S14 food  S15 age",
                {panel.x + 16.0f, panel.y + 48.0f}, 9.0f, 1.0f, col(theme::textDim));
-    DrawTextEx(font_, "S16 heat  S17 prey value  S18 threat urgency",
+    DrawTextEx(font_, "S16 heat  S17 prey value  S18 threat urgency  S19 previous energy reward",
                {panel.x + 16.0f, panel.y + 60.0f}, 9.0f, 1.0f, col(theme::textDim));
-    DrawTextEx(font_, "a/b: source  w: learned gain  iw: inherited gain  b: bias  p: plasticity  v: value",
+    DrawTextEx(font_, "d: destination  a/b: source registers  #: immediate/branch offset  v: register value",
                {panel.x + 16.0f, panel.y + 72.0f}, 9.0f, 1.0f, col(theme::textDim));
 
     static constexpr const char* kOps[] = {
-        "id", "add", "mul", "sub", "min", "max", "abs", "tanh", "memory", "gt", "lt"};
+        "nop", "sense", "load", "move", "add", "sub", "mul", "min", "max", "abs",
+        "tanh", "memory", "learn", "gt", "lt", "jpos", "jneg", "output"};
+    static_assert(std::size(kOps) == genetics::kVmOpCount);
     static constexpr const char* kPorts[] = {
         "x-force", "y-force", "uptake", "resource", "defense", "cohesion", "hunt", "reproduction"};
     static constexpr Rgb kUnitColors[] = {
@@ -444,35 +450,27 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
     for (std::size_t i = firstUnit; i < lastUnit; ++i) {
         const auto& unit = units[i];
         const Rectangle r = position(i);
-        auto inputName = [&](std::uint16_t source) {
-            char text[12];
-            if (source < genetics::kCircuitInputs)
-                std::snprintf(text, sizeof text, "S%02u", static_cast<unsigned>(source));
-            else
-                std::snprintf(text, sizeof text, "U%02u",
-                              static_cast<unsigned>(source - genetics::kCircuitInputs));
-            return std::string(text);
-        };
         const auto op = std::min<std::size_t>(unit.op, std::size(kOps) - 1);
-        DrawRectangleRounded(r, 0.12f, 5, col(kUnitColors[op], 65));
-        DrawRectangleRoundedLinesEx(r, 0.12f, 5, 1.0f, col(kUnitColors[op], 180));
+        DrawRectangleRounded(r, 0.12f, 5, col(kInstructionColors[op], 65));
+        DrawRectangleRoundedLinesEx(r, 0.12f, 5, 1.0f, col(kInstructionColors[op], 180));
         char line[48];
-        std::snprintf(line, sizeof line, "U%02zu  %s", i, kOps[op]);
+        std::snprintf(line, sizeof line, "I%03zu  %s", i, kOps[op]);
         DrawTextEx(font_, line, {r.x + 6.0f, r.y + 2.0f}, 9.0f, 1.0f, col(theme::text));
-        if (unit.output < genetics::kCircuitOutputs) {
-            const Vector2 outSize = MeasureTextEx(font_, kPorts[unit.output], 8.0f, 1.0f);
-            DrawTextEx(font_, kPorts[unit.output],
+        if (unit.op == static_cast<std::uint8_t>(genetics::VmOp::Output)) {
+            const Vector2 outSize = MeasureTextEx(font_, kPorts[unit.dst % genetics::kVmOutputs], 8.0f, 1.0f);
+            DrawTextEx(font_, kPorts[unit.dst % genetics::kVmOutputs],
                        {r.x + r.width - outSize.x - 4.0f, r.y + 2.0f}, 8.0f, 1.0f, col(theme::accent));
         }
-        const std::string sourceA = inputName(unit.sourceA);
-        const std::string sourceB = inputName(unit.sourceB);
-        std::snprintf(line, sizeof line, "a%s b%s w%.1f b%.1f", sourceA.c_str(), sourceB.c_str(),
-                      static_cast<double>(unit.weight), static_cast<double>(unit.bias));
+        if (unit.op == static_cast<std::uint8_t>(genetics::VmOp::Sense)) {
+            std::snprintf(line, sizeof line, "d%02u <- S%02u", static_cast<unsigned>(unit.dst),
+                          static_cast<unsigned>(unit.sourceA));
+        } else {
+            std::snprintf(line, sizeof line, "d%02u a%02u b%02u #%d", static_cast<unsigned>(unit.dst),
+                          static_cast<unsigned>(unit.sourceA), static_cast<unsigned>(unit.sourceB),
+                          static_cast<int>(unit.immediate));
+        }
         DrawTextEx(font_, line, {r.x + 6.0f, r.y + 12.0f}, 8.0f, 1.0f, col(theme::textDim));
-        std::snprintf(line, sizeof line, "p%.2f iw%.1f v%.2f",
-                      static_cast<double>(unit.plasticity),
-                      static_cast<double>(unit.inheritedWeight),
-                      static_cast<double>(unit.value));
+        std::snprintf(line, sizeof line, "register %.2f", static_cast<double>(unit.value));
         DrawTextEx(font_, line, {r.x + 6.0f, r.y + 21.0f}, 8.0f, 1.0f, col(theme::textDim));
     }
 }
@@ -572,7 +570,7 @@ void Renderer::draw(const RenderSnapshot& snap, const telemetry::TelemetryHistor
     drawLabels(snap, vs);
     drawTooltip(snap, vs);
     hud_.draw(font_, snap, hist, vs, GetFPS(), GetScreenWidth(), GetScreenHeight());
-    if (vs.unitView) drawCircuitInspector(snap);
+    if (vs.unitView) drawProgramInspector(snap);
     EndDrawing();
 }
 

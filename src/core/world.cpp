@@ -96,18 +96,17 @@ std::pair<float, float> World::flowAt(float x, float y) const noexcept {
 
 std::uint32_t World::addAgent(const float* genome, float x, float y, float energy, std::uint32_t sp,
                               std::uint64_t parentId, std::uint32_t gen,
-                              const genetics::Circuit& inheritedCircuit) {
+                              const genetics::Program& inheritedProgram) {
     const std::uint32_t i = pool.spawn(x, y);
     std::copy(genome, genome + kGenomeLen, pool.genome.begin() + static_cast<std::ptrdiff_t>(i) * static_cast<std::ptrdiff_t>(kGenomeLen));
-    if (inheritedCircuit.empty()) {
-        pool.circuit[i] = genetics::makeSeedCircuit();
+    if (inheritedProgram.empty()) {
+        pool.program[i] = genetics::makeSeedProgram();
     } else {
-        pool.circuit[i] = inheritedCircuit;
+        pool.program[i] = inheritedProgram;
     }
-    pool.circuitState[i].assign(pool.circuit[i].size(), 0.0f);
-    pool.circuitWeights[i].reserve(pool.circuit[i].size());
-    pool.circuitEligibility[i].assign(pool.circuit[i].size(), 0.0f);
-    for (const auto& unit : pool.circuit[i]) pool.circuitWeights[i].push_back(unit.weight);
+    genetics::repairProgram(pool.program[i]);
+    pool.vmState[i].fill(0.0f);
+    pool.vmExecuted[i] = 0;
     const auto ph = genetics::decode(genome, cfg.eco.vTop);
     pool.eta[i] = ph.eta; pool.senseR[i] = ph.senseR; pool.vMax[i] = ph.vMax;
     pool.aggression[i] = ph.aggression; pool.repThresh[i] = ph.repThresh;
@@ -129,8 +128,9 @@ void World::seedPopulation() {
     std::fill(base, base + kGenomeLen, 0.5f);
     base[genetics::kAggr] = 0.18f;
     base[genetics::kMutRate] = 0.42f;
-    const genetics::Circuit ancestorCircuit = genetics::makeSeedCircuit();
-    const std::uint32_t ancestor = species.addFounder(base, "Vita", "communis", 30.0f, 0, 0, ancestorCircuit);
+    const genetics::Program ancestorProgram = genetics::makeSeedProgram();
+    const std::uint32_t ancestor =
+        species.addFounder(base, "Vita", "communis", 30.0f, 0, 0, ancestorProgram);
 
     for (std::size_t i = 0; i < cfg.initialAgents; ++i) {
         CounterRng rng(cfg.seed, 0, 0x1000 + i);
@@ -145,7 +145,7 @@ void World::seedPopulation() {
         const auto ph = genetics::decode(g, cfg.eco.vTop);
         const std::uint32_t initialSpecies = ancestor;
         const std::uint32_t idx = addAgent(g, x, y, ph.eMax * (0.4f + 0.4f * rng.uniform()),
-                                           initialSpecies, 0, 0, ancestorCircuit);
+                                           initialSpecies, 0, 0, ancestorProgram);
         pool.age[idx] = rng.uniform() * 35.0f;
         pool.heading[idx] = rng.uniform() * kTwoPi;
     }

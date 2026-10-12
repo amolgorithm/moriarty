@@ -12,8 +12,9 @@ struct Telemetry {
     std::uint32_t population = 0;
     std::uint32_t speciesCount = 0;
     float shannonBits = 0.0f;
-    float meanCircuitUnits = 0.0f;
-    float meanOutputConnectedUnits = 0.0f;
+    float meanProgramInstructions = 0.0f;
+    float meanOutputConnectedInstructions = 0.0f;
+    float meanExecutedInstructions = 0.0f;
     float meanEnergy = 0.0f;
     float totalHeat = 0.0f;
 };
@@ -27,14 +28,15 @@ struct PhaseMarker {
 class TelemetryHistory {
    public:
     explicit TelemetryHistory(std::size_t capacity = 600)
-        : population(capacity), entropy(capacity), species(capacity), energy(capacity), complexity(capacity) {}
+        : population(capacity), entropy(capacity), species(capacity), energy(capacity), complexity(capacity),
+          executedInstructions(capacity) {}
 
     void push(const Telemetry& t);
     void mark(std::string label);  // marker at the next sample
 
     const Telemetry& latest() const noexcept { return latest_; }
 
-    RingBuffer<float> population, entropy, species, energy, complexity;
+    RingBuffer<float> population, entropy, species, energy, complexity, executedInstructions;
     std::vector<PhaseMarker> markers;
 
    private:

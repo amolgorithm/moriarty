@@ -2,6 +2,7 @@
 #include <cstddef>
 
 #include "alife/genetics/circuit.hpp"
+#include "alife/genetics/vm.hpp"
 
 namespace alife::genetics {
 
@@ -25,7 +26,7 @@ enum Gene : std::size_t {
 
 // Species distance includes expressed program architecture as well as scalar traits.
 inline constexpr std::size_t kDistTraitGenes = 13;
-inline constexpr std::size_t kDistGenes = kDistTraitGenes + kCircuitOperationCount + 3;
+inline constexpr std::size_t kDistGenes = kDistTraitGenes + kVmOpCount + 3;
 inline constexpr std::size_t kDistIndex[kDistTraitGenes] = {
     kEta, kSense, kSpeed, kAggr, kRepThr, kSize, kDefense, kExplore, kDietPreference, kHeatTolerance,
     kImmunity, kRepair, kDigestion};

@@ -15,7 +15,7 @@ enum Cause : std::uint8_t { kAlive = 0, kKilled, kStarved, kOld };
 
 struct Birth {
     std::array<float, kGenomeLen> genome;
-    genetics::Circuit circuit;
+    genetics::Program program;
     float x, y, energy;
     std::uint32_t parentSpecies, generation;
     std::uint64_t parentId;
@@ -64,7 +64,7 @@ void mesoStep(World& w, ThreadPool& tp) {
     sc.mated.assign(n, 0);
     const auto& k = p.read();
 
-    // ---- pass 1: sense the neighborhood, express the inherited circuit ----
+    // ---- pass 1: sense the neighborhood, execute the inherited program ----
     tp.parallelFor(n, 256, [&](std::size_t begin, std::size_t end) {
       for (std::uint32_t i = static_cast<std::uint32_t>(begin); i < end; ++i) {
         const float x = k.px[i], y = k.py[i], sr = p.senseR[i], sr2 = sr * sr;
@@ -139,7 +139,7 @@ void mesoStep(World& w, ThreadPool& tp) {
             if (m > 1e-4f) { const float s = std::min(1.0f, m / (0.5f * sr)); kcx = mx / m * s; kcy = my / m * s; }
         }
 
-        genetics::CircuitInputs inputs{};
+        genetics::VmInputs inputs{};
         inputs[0] = fx;
         inputs[1] = fy;
         inputs[2] = cx;
@@ -170,8 +170,10 @@ void mesoStep(World& w, ThreadPool& tp) {
         inputs[16] = std::clamp(2.0f * localHeat / (1.0f + localHeat) - 1.0f, -1.0f, 1.0f);
         inputs[17] = std::clamp(2.0f * preyValue * 180.0f, -1.0f, 1.0f);
         inputs[18] = threat >= 0 ? std::clamp(1.0f - 2.0f * dThreat / sr, -1.0f, 1.0f) : -1.0f;
-        const auto outputs = genetics::evaluateCircuitInPlace(
-            p.circuit[i], inputs, p.circuitState[i], p.circuitEligibility[i], p.circuitWeights[i], 0.85f);
+        inputs[19] = p.lastReward[i];
+        const auto evaluation = genetics::executeProgram(p.program[i], inputs, p.vmState[i]);
+        const auto& outputs = evaluation.outputs;
+        p.vmExecuted[i] = evaluation.executed;
         const float hunger = std::clamp(1.0f - eFrac, 0.0f, 1.0f);
         const float forageDrive = hunger * (1.0f - 0.65f * p.aggression[i]);
         const float huntDrive = hunger * std::clamp((p.aggression[i] - 0.25f) / 0.75f, 0.0f, 1.0f) *
@@ -324,11 +326,14 @@ void mesoStep(World& w, ThreadPool& tp) {
                            eco.moveCost * p.mass[i] * speed * speed + eco.defenseCost * p.defense[i] * m75 +
                            eco.aggrCost * aggr * m75 +
                            eco.defenseCost * 0.35f * p.protection[i] * m75 +
-                           eco.circuitCost * static_cast<float>(p.circuit[i].size()) * m75;
+                           eco.instructionCost * static_cast<float>(p.vmExecuted[i]) * m75;
         const float requestedCost = cost * dt;
         const float beforeUpkeep = p.energy[i];
         p.energy[i] -= std::min(std::max(0.0f, p.energy[i]), requestedCost);
         const float metabolicCost = beforeUpkeep - p.energy[i];
+        p.lastReward[i] = std::clamp(
+            8.0f * (p.energy[i] - sc.energyAtStart[i]) / std::max(1.0f, eMax),
+            -1.0f, 1.0f);
         const float beforeHeat = w.Q.v[cell];
         w.Q.v[cell] += std::clamp(eco.heatFrac, 0.0f, 1.0f) * metabolicCost;
         const float heat = w.Q.v[cell] - beforeHeat;
@@ -337,12 +342,6 @@ void mesoStep(World& w, ThreadPool& tp) {
         else
             w.stats.externalEnergy += heat - metabolicCost;
         p.age[i] += dt;
-        const float reward = std::clamp(8.0f * (p.energy[i] - sc.energyAtStart[i]) /
-                                            std::max(1.0f, eMax),
-                                        -1.0f, 1.0f);
-        genetics::applyRewardModulatedPlasticity(p.circuit[i], p.circuitEligibility[i], reward,
-                                                  p.circuitWeights[i]);
-
         // death
         if (p.energy[i] <= 0.0f) {
             sc.dead[i] = 1; sc.cause[i] = kStarved; ++w.stats.starved;
@@ -397,18 +396,20 @@ void mesoStep(World& w, ThreadPool& tp) {
         if (mate >= 0 && rng.uniform() < 0.7f) {
             const float* gj = &p.genome[static_cast<std::size_t>(mate) * kGenomeLen];
             genetics::crossover(gi, gj, b.genome.data(), rng);
-            b.circuit = genetics::crossoverCircuit(p.circuit[i], p.circuit[static_cast<std::size_t>(mate)], rng);
+            b.program = genetics::crossoverProgram(
+                p.program[i], p.program[static_cast<std::size_t>(mate)], rng);
             rate = 0.5f * (rate + 0.012f + 0.168f * gj[genetics::kMutRate]);
             recombined = true;
         } else {
             std::copy(gi, gi + kGenomeLen, b.genome.begin());
-            b.circuit = p.circuit[i];
+            b.program = p.program[i];
         }
         genetics::mutate(b.genome.data(), rate, rng);
-        genetics::mutateCircuit(b.circuit, rate, rng);
+        genetics::mutateProgram(b.program, rate, rng);
 
         const auto cph = genetics::decode(b.genome.data(), eco.vTop);
-        const float constructionCost = eco.unitBuildCost * static_cast<float>(b.circuit.size());
+        const float constructionCost =
+            eco.instructionBuildCost * static_cast<float>(b.program.size());
         const float bodyBuildCost = eco.carcassPerMass * cph.mass;
         const float reproductionCost = 0.04f * p.eMax[i];
         const float available = p.energy[i] - constructionCost - bodyBuildCost - reproductionCost;
@@ -448,9 +449,10 @@ void mesoStep(World& w, ThreadPool& tp) {
 
     for (auto& b : births) {
         CounterRng rng(cfg.seed, w.tick, b.parentId ^ 0x5BECull);
-        const std::uint32_t sp = w.species.classify(b.genome.data(), b.circuit, b.parentSpecies, w.tick, rng);
+        const std::uint32_t sp =
+            w.species.classify(b.genome.data(), b.program, b.parentSpecies, w.tick, rng);
         const std::uint32_t idx = w.addAgent(b.genome.data(), b.x, b.y, std::max(0.0f, b.energy), sp,
-                                             b.parentId, b.generation, b.circuit);
+                                             b.parentId, b.generation, b.program);
         p.read().vx[idx] = b.vx; p.read().vy[idx] = b.vy;
         p.write().vx[idx] = b.vx; p.write().vy[idx] = b.vy;
         p.heading[idx] = std::atan2(b.vy, b.vx);

@@ -114,7 +114,7 @@ struct World {
     }
     std::uint32_t addAgent(const float* genome, float x, float y, float energy, std::uint32_t species,
                            std::uint64_t parent, std::uint32_t generation,
-                           const genetics::Circuit& circuit = {});
+                           const genetics::Program& program = {});
     void emit(const Event& e) {
         if (events.size() < 700) events.push_back(e);
     }

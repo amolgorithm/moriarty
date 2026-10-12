@@ -9,7 +9,7 @@ void AgentPool::forEachColumn(F&& f) {
     const float z = 0.0f;
     const std::uint32_t z32 = 0;
     const std::uint64_t z64 = 0;
-    f(energy, z); f(bodyEnergy, z); f(digest, z); f(age, z);
+    f(energy, z); f(bodyEnergy, z); f(digest, z); f(age, z); f(lastReward, z);
     f(eta, 1.0f); f(senseR, 20.0f); f(vMax, 30.0f); f(aggression, z); f(repThresh, 0.7f);
     f(dietPreference, 0.5f); f(heatTolerance, 0.5f);
     f(immunity, 0.5f); f(repair, 0.5f); f(digestion, 0.5f);
@@ -29,10 +29,8 @@ void AgentPool::reserve(std::size_t n) {
     }
     forEachColumn([n](auto& v, auto) { v.reserve(n); });
     genome.reserve(n * kGenomeLen);
-    circuit.reserve(n);
-    circuitState.reserve(n);
-    circuitWeights.reserve(n);
-    circuitEligibility.reserve(n);
+    program.reserve(n);
+    vmState.reserve(n);
 }
 
 std::uint32_t AgentPool::spawn(float x, float y) {
@@ -42,10 +40,9 @@ std::uint32_t AgentPool::spawn(float x, float y) {
     }
     forEachColumn([](auto& v, auto init) { v.push_back(init); });
     genome.resize(genome.size() + kGenomeLen, 0.0f);
-    circuit.emplace_back();
-    circuitState.emplace_back();
-    circuitWeights.emplace_back();
-    circuitEligibility.emplace_back();
+    program.emplace_back();
+    vmState.emplace_back();
+    vmExecuted.push_back(0);
     id.back() = nextId++;
     return i;
 }
@@ -61,15 +58,13 @@ void AgentPool::swapRemove(std::uint32_t i) {
     }
     forEachColumn([&](auto& v, auto) { drop(v); });
     if (i != last) {
-        circuit[i] = std::move(circuit[last]);
-        circuitState[i] = std::move(circuitState[last]);
-        circuitWeights[i] = std::move(circuitWeights[last]);
-        circuitEligibility[i] = std::move(circuitEligibility[last]);
+        program[i] = std::move(program[last]);
+        vmState[i] = vmState[last];
+        vmExecuted[i] = vmExecuted[last];
     }
-    circuit.pop_back();
-    circuitState.pop_back();
-    circuitWeights.pop_back();
-    circuitEligibility.pop_back();
+    program.pop_back();
+    vmState.pop_back();
+    vmExecuted.pop_back();
     if (i != last) {
         std::copy_n(genome.begin() + static_cast<std::ptrdiff_t>(last * kGenomeLen), kGenomeLen,
                     genome.begin() + static_cast<std::ptrdiff_t>(i * kGenomeLen));

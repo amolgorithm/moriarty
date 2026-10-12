@@ -3,7 +3,7 @@
 
 #include "alife/core/aligned_alloc.hpp"
 #include "alife/core/config.hpp"
-#include "alife/genetics/circuit.hpp"
+#include "alife/genetics/vm.hpp"
 
 namespace alife {
 
@@ -22,6 +22,7 @@ struct AgentPool {
 
     // warm: meso tick
     avec<float> energy, bodyEnergy, digest, age;  // digest: seconds until the next hunt is possible
+    avec<float> lastReward;
     avec<float> eta, senseR, vMax, aggression, repThresh, dietPreference, heatTolerance;
     avec<float> immunity, repair, digestion;  // decoded heritable survival/metabolism traits
     avec<float> radius, mass, defense, eMax, explore;
@@ -35,9 +36,9 @@ struct AgentPool {
 
     // cold: evo and telemetry only
     avec<float> genome;  // count * kGenomeLen, row-major
-    std::vector<genetics::Circuit> circuit;
-    std::vector<std::vector<float>> circuitState;
-    std::vector<std::vector<float>> circuitWeights, circuitEligibility;
+    std::vector<genetics::Program> program;
+    std::vector<genetics::VmState> vmState;
+    avec<std::uint16_t> vmExecuted;
     avec<std::uint64_t> id, parent, birthTick, preyId, threatId;
 
     std::uint64_t nextId = 1;

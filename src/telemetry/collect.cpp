@@ -23,17 +23,21 @@ Telemetry collect(const World& w) {
 
     double e = 0.0;
     double units = 0.0;
-    double outputConnectedUnits = 0.0;
+    double outputConnectedInstructions = 0.0, executedInstructions = 0.0;
     for (std::uint32_t i = 0; i < w.pool.count(); ++i) {
         e += static_cast<double>(w.pool.energy[i] / w.pool.eMax[i]);
-        units += static_cast<double>(w.pool.circuit[i].size());
-        outputConnectedUnits +=
-            static_cast<double>(genetics::countOutputConnectedUnits(w.pool.circuit[i]));
+        units += static_cast<double>(w.pool.program[i].size());
+        outputConnectedInstructions += static_cast<double>(
+            genetics::countOutputConnectedInstructions(w.pool.program[i]));
+        executedInstructions += static_cast<double>(w.pool.vmExecuted[i]);
     }
     t.meanEnergy = t.population ? static_cast<float>(e / static_cast<double>(t.population)) : 0.0f;
-    t.meanCircuitUnits = t.population ? static_cast<float>(units / static_cast<double>(t.population)) : 0.0f;
-    t.meanOutputConnectedUnits =
-        t.population ? static_cast<float>(outputConnectedUnits / static_cast<double>(t.population)) : 0.0f;
+    t.meanProgramInstructions =
+        t.population ? static_cast<float>(units / static_cast<double>(t.population)) : 0.0f;
+    t.meanOutputConnectedInstructions =
+        t.population ? static_cast<float>(outputConnectedInstructions / static_cast<double>(t.population)) : 0.0f;
+    t.meanExecutedInstructions =
+        t.population ? static_cast<float>(executedInstructions / static_cast<double>(t.population)) : 0.0f;
     for (float q : w.Q.v) t.totalHeat += q;
     return t;
 }

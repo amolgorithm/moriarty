@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
                 static_cast<double>(world.cfg.eco.regrow));
     std::printf("%7s %6s %5s %5s %6s %6s %6s %7s %7s %7s %6s %6s %6s %8s %8s %6s %6s %6s %10s\n",
                 "t[s]", "pop", "taxa", "spp8+", "graze", "omni", "pred", "births", "kills", "starve", "H",
-                "units", "gen", "food E", "prey E", "forage", "hunt", "evade", "balance");
+                "instr", "gen", "food E", "prey E", "forage", "hunt", "evade", "balance");
     for (std::uint64_t t = 1; t <= ticks; ++t) {
         sched.stepOnce();
         if (t % step == 0) {
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
                         tel.population, extantTaxa, tel.speciesCount, role[0], role[1], role[2],
                         static_cast<unsigned long long>(world.stats.births), static_cast<unsigned long long>(world.stats.kills),
                         static_cast<unsigned long long>(world.stats.starved), static_cast<double>(tel.shannonBits),
-                        static_cast<double>(tel.meanCircuitUnits),
+                        static_cast<double>(tel.meanProgramInstructions),
                         world.pool.count() ? static_cast<double>(generationSum) / world.pool.count() : 0.0,
                         world.stats.plantEnergy,
                         world.stats.animalEnergy, action[static_cast<std::size_t>(alife::AgentAction::Forage)],
@@ -108,9 +108,10 @@ int main(int argc, char** argv) {
     std::printf("\nextant taxa at end: %zu total; showing up to 25\n", extant.size());
     for (std::size_t i = 0; i < shown; ++i) {
         const auto& sp = world.species.all()[extant[i]];
-        std::printf("  %-22s n=%-5u units=%.1f active=%.1f aggr=%.2f size=%.1f speed=%.0f def=%.2f diet=%.2f heat=%.2f immune=%.2f repair=%.2f digest=%.2f %s\n",
-                    sp.fullName().c_str(), liveCounts[extant[i]], static_cast<double>(sp.meanUnits),
-                    static_cast<double>(sp.meanActiveUnits),
+        std::printf("  %-22s n=%-5u instructions=%.1f active=%.1f aggr=%.2f size=%.1f speed=%.0f def=%.2f diet=%.2f heat=%.2f immune=%.2f repair=%.2f digest=%.2f %s\n",
+                    sp.fullName().c_str(), liveCounts[extant[i]],
+                    static_cast<double>(sp.meanProgramInstructions),
+                    static_cast<double>(sp.meanOutputConnectedInstructions),
                     static_cast<double>(sp.meanAggr), static_cast<double>(sp.meanSize), static_cast<double>(sp.meanSpeed),
                     static_cast<double>(sp.meanDef), static_cast<double>(sp.meanDiet),
                     static_cast<double>(sp.meanHeatTolerance),
@@ -119,36 +120,43 @@ int main(int argc, char** argv) {
                     taxonTraits[extant[i]][2] / liveCounts[extant[i]],
                     sp.parent == alife::genetics::SpeciesTable::kNone ? "founder" : "derived");
     }
-    double learnedDelta = 0.0, connectedUnits = 0.0;
-    std::size_t learnedUnits = 0, memoryUnits = 0, comparisonUnits = 0;
-    std::array<std::uint32_t, alife::genetics::kCircuitOutputs> outputCarriers{};
+    double connectedInstructions = 0.0, executedInstructions = 0.0;
+    std::size_t totalInstructions = 0, memoryInstructions = 0, learningInstructions = 0;
+    std::size_t comparisonInstructions = 0;
+    std::size_t branchInstructions = 0;
+    std::array<std::uint32_t, alife::genetics::kVmOutputs> outputCarriers{};
     for (std::uint32_t i = 0; i < world.pool.count(); ++i) {
-        const auto& circuit = world.pool.circuit[i];
-        std::array<bool, alife::genetics::kCircuitOutputs> hasOutput{};
-        connectedUnits += static_cast<double>(alife::genetics::countOutputConnectedUnits(circuit));
-        for (std::size_t u = 0; u < circuit.size(); ++u) {
-            learnedDelta += std::abs(world.pool.circuitWeights[i][u] - circuit[u].weight);
-            ++learnedUnits;
-            memoryUnits += circuit[u].op == alife::genetics::UnitOp::Memory;
-            comparisonUnits += circuit[u].op == alife::genetics::UnitOp::GreaterThan ||
-                               circuit[u].op == alife::genetics::UnitOp::LessThan;
-            if (circuit[u].output < hasOutput.size()) hasOutput[circuit[u].output] = true;
+        const auto& program = world.pool.program[i];
+        std::array<bool, alife::genetics::kVmOutputs> hasOutput{};
+        connectedInstructions += static_cast<double>(
+            alife::genetics::countOutputConnectedInstructions(program));
+        executedInstructions += world.pool.vmExecuted[i];
+        for (const auto& instruction : program) {
+            ++totalInstructions;
+            memoryInstructions += instruction.op == alife::genetics::VmOp::Memory;
+            learningInstructions += instruction.op == alife::genetics::VmOp::Learn;
+            comparisonInstructions += instruction.op == alife::genetics::VmOp::GreaterThan ||
+                                     instruction.op == alife::genetics::VmOp::LessThan;
+            branchInstructions += instruction.op == alife::genetics::VmOp::JumpIfPositive ||
+                                 instruction.op == alife::genetics::VmOp::JumpIfNegative;
+            if (instruction.op == alife::genetics::VmOp::Output)
+                hasOutput[instruction.dst % hasOutput.size()] = true;
         }
         for (std::size_t output = 0; output < hasOutput.size(); ++output)
             outputCarriers[output] += hasOutput[output] ? 1u : 0u;
     }
-    std::printf("circuit structure: output-connected units %.2f / total %.2f; comparison units %zu; memory units %zu\n",
-                world.pool.count() ? connectedUnits / world.pool.count() : 0.0,
-                world.pool.count() ? static_cast<double>(learnedUnits) / world.pool.count() : 0.0,
-                comparisonUnits, memoryUnits);
+    std::printf("virtual genome: output-connected instructions %.2f / total %.2f; executed %.2f/tick; branches %zu, comparisons %zu, memory %zu, learning %zu\n",
+                world.pool.count() ? connectedInstructions / world.pool.count() : 0.0,
+                world.pool.count() ? static_cast<double>(totalInstructions) / world.pool.count() : 0.0,
+                world.pool.count() ? executedInstructions / world.pool.count() : 0.0,
+                branchInstructions, comparisonInstructions, memoryInstructions,
+                learningInstructions);
     std::printf("routed-output carriers: x %u/%u y %u/%u uptake %u/%u resource %u/%u\n",
                 outputCarriers[0], world.pool.count(), outputCarriers[1], world.pool.count(),
                 outputCarriers[2], world.pool.count(), outputCarriers[3], world.pool.count());
     std::printf("routed-output carriers: defense %u/%u cohesion %u/%u hunt %u/%u reproduction %u/%u\n",
                 outputCarriers[4], world.pool.count(), outputCarriers[5], world.pool.count(),
                 outputCarriers[6], world.pool.count(), outputCarriers[7], world.pool.count());
-    std::printf("subunit adaptation: mean |learned-inherited weight| %.4f\n",
-                learnedUnits ? learnedDelta / static_cast<double>(learnedUnits) : 0.0);
     const double balance = world.energyInventory() + world.stats.dissipatedEnergy -
                            world.stats.initialEnergy - world.stats.externalEnergy;
     std::printf("energy ledger: start %.3f + external %.3f = inventory %.3f + dissipated %.3f (residual %.3g)\n",

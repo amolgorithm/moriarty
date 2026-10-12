@@ -38,10 +38,9 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
     CHECK(w.pool.socialBias.size() == n);
     CHECK(w.pool.reproductionBias.size() == n);
     CHECK(w.pool.genome.size() == static_cast<std::size_t>(n) * kGenomeLen);
-    CHECK(w.pool.circuit.size() == n);
-    CHECK(w.pool.circuitState.size() == n);
-    CHECK(w.pool.circuitWeights.size() == n);
-    CHECK(w.pool.circuitEligibility.size() == n);
+    CHECK(w.pool.program.size() == n);
+    CHECK(w.pool.vmState.size() == n);
+    CHECK(w.pool.vmExecuted.size() == n);
     CHECK(w.pool.wx.size() == n);
     CHECK(w.pool.preyId.size() == n);
     CHECK(w.pool.plantIntake.size() == n);
@@ -58,7 +57,8 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
         CHECK(std::isfinite(w.pool.energy[i]));
         CHECK(w.pool.bodyEnergy[i] > 0.0f);
         CHECK(w.pool.energy[i] <= w.pool.eMax[i] * 1.31f);
-        CHECK(!w.pool.circuit[i].empty());
+        CHECK(w.pool.program[i].size() >= genetics::kVmOutputs);
+        CHECK(w.pool.program[i].size() <= genetics::kVmMaxInstructions);
     }
 }
 

@@ -9,6 +9,7 @@
 #include "alife/core/rng.hpp"
 #include "alife/genetics/genome.hpp"
 #include "alife/genetics/circuit.hpp"
+#include "alife/genetics/vm.hpp"
 #include "alife/genetics/lineage.hpp"
 
 namespace alife::genetics {
@@ -27,7 +28,8 @@ struct Species {
     std::uint64_t founded = 0, extinct = 0;
     bool alive = true, announced = false;
     std::uint32_t count = 0, peak = 0;
-    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0, meanUnits = 0, meanActiveUnits = 0;
+    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0;
+    float meanProgramInstructions = 0, meanOutputConnectedInstructions = 0;
     float meanDiet = 0.5f, meanHeatTolerance = 0.5f;
     float labelX = 0, labelY = 0;
     Role role = Role::Grazer;
@@ -46,10 +48,15 @@ class SpeciesTable {
     std::uint32_t addFounder(const float* genome, const char* genus, const char* epithet, float hue,
                              std::uint32_t genusIndex, std::uint64_t tick,
                              std::span<const UnitGene> circuit = {});
+    std::uint32_t addFounder(const float* genome, const char* genus, const char* epithet, float hue,
+                             std::uint32_t genusIndex, std::uint64_t tick,
+                             std::span<const VmInstruction> program);
     std::uint32_t classify(const float* genome, std::uint32_t parentSpecies, std::uint64_t tick,
                            CounterRng& rng);
     std::uint32_t classify(const float* genome, std::span<const UnitGene> circuit, std::uint32_t parentSpecies,
                            std::uint64_t tick, CounterRng& rng);
+    std::uint32_t classify(const float* genome, std::span<const VmInstruction> program,
+                           std::uint32_t parentSpecies, std::uint64_t tick, CounterRng& rng);
     void revive(std::uint32_t id, std::uint64_t tick);
     void refresh(const AgentPool& pool, float worldW, float worldH, std::uint64_t tick,
                  std::vector<std::string>& markers, LineageLog* lineage);
@@ -59,6 +66,7 @@ class SpeciesTable {
 
     static void project(const float* genome, float* out);
     static void project(const float* genome, std::span<const UnitGene> circuit, float* out);
+    static void project(const float* genome, std::span<const VmInstruction> program, float* out);
     static float distance(const float* projected, const std::array<float, kDistGenes>& ex);
 
     float delta = 0.08f;

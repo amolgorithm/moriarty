@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "alife/genetics/circuit.hpp"
+#include "alife/genetics/vm.hpp"
 #include "alife/render/palette.hpp"
 
 namespace alife::render {
@@ -20,9 +20,9 @@ struct AgentVis {
     float immunity = 0.5f, repair = 0.5f, digestion = 0.5f;
     float age01 = 0;
     std::uint32_t species = 0;
-    std::uint16_t circuitUnits = 0;
-    std::array<std::uint16_t, genetics::kCircuitOperationCount> unitOps{};
-    float circuitActivity = 0;
+    std::uint16_t programLength = 0, executedInstructions = 0;
+    std::array<std::uint16_t, genetics::kVmOpCount> opCounts{};
+    float registerActivity = 0;
     std::uint64_t id = 0;
 };
 
@@ -34,7 +34,8 @@ struct SpeciesVis {
     Rgb color{200, 200, 200};
     RoleVis role = RoleVis::Grazer;
     float labelX = 0, labelY = 0;
-    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0, meanUnits = 0, meanActiveUnits = 0;
+    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0;
+    float meanProgramInstructions = 0, meanOutputConnectedInstructions = 0;
     bool established = false;
 };
 
@@ -56,14 +57,14 @@ struct SelectedVis {
     float plantIntake = 0, animalIntake = 0;
     std::uint32_t generation = 0;
     std::uint64_t parentId = 0;
-    std::array<float, genetics::kCircuitOutputs> outputs{};
+    std::array<float, genetics::kVmOutputs> outputs{};
     bool hasPrey = false, hasThreat = false;
     float preyX = 0, preyY = 0, threatX = 0, threatY = 0;
     std::string state;
     struct Unit {
-        std::uint8_t op = 0, output = 0xFF;
-        std::uint16_t sourceA = 0, sourceB = 0;
-        float weight = 0, inheritedWeight = 0, bias = 0, plasticity = 0, value = 0;
+        std::uint8_t op = 0, dst = 0, sourceA = 0, sourceB = 0;
+        std::int16_t immediate = 0;
+        float value = 0;
     };
     std::vector<Unit> units;
 };

@@ -13,6 +13,7 @@ add_library(alife_core STATIC
   genetics/gpm.cpp
   genetics/operators.cpp
   genetics/speciation.cpp
+  genetics/vm.cpp
   genetics/lineage.cpp
   math/replicator.cpp
   math/te.cpp

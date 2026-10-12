@@ -4,7 +4,7 @@
 
 namespace alife {
 
-// Scalar phenotype genes; executable behavioral circuits have variable length.
+// Scalar phenotype genes; executable programs have variable length.
 inline constexpr std::size_t kGenomeLen = 14;
 inline constexpr float kMaxSense = 48.0f;  // sense radius cap, grid cell must be >= this
 
@@ -49,8 +49,8 @@ struct EcoParams {
     float digestTime = 12.0f;    // s of handling time after a kill
     float huntBelow = 0.65f;     // hungry predators begin hunting before reserves are critical
     float aggrCost = 0.28f;      // upkeep of weaponry, x aggression x mass^0.75
-    float circuitCost = 0.0015f; // upkeep per expressed computational unit, x mass^0.75
-    float unitBuildCost = 0.08f; // embodied energy per inherited computational unit
+    float instructionCost = 0.00008f; // upkeep per executed instruction, x mass^0.75
+    float instructionBuildCost = 0.006f; // embodied energy per inherited instruction
     float carcassPerMass = 8.0f; // finite chemical-energy equivalent stored in body tissue
     float lunge = 1.5f;          // energy per attack attempt
     // life history

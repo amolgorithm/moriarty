@@ -51,7 +51,7 @@ class Renderer {
     void drawAgents(const RenderSnapshot& snap, const ViewState& vs);
     void drawBody(const AgentVis& a, Rgb color, float alpha, int lod);
     void drawSelection(const RenderSnapshot& snap);
-    void drawCircuitInspector(const RenderSnapshot& snap);
+    void drawProgramInspector(const RenderSnapshot& snap);
     void drawEffects();
     void drawLabels(const RenderSnapshot& snap, const ViewState& vs);
     void drawTooltip(const RenderSnapshot& snap, const ViewState& vs);

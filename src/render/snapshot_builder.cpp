@@ -28,15 +28,14 @@ AgentVis makeVis(const World& w, std::uint32_t i) {
     a.digestion = p.digestion[i];
     a.age01 = std::clamp(p.age[i] / w.cfg.eco.lifespan, 0.0f, 1.0f);
     a.species = p.species[i];
-    a.circuitUnits = static_cast<std::uint16_t>(p.circuit[i].size());
-    for (std::size_t u = 0; u < p.circuit[i].size(); ++u) {
-        const std::size_t op = static_cast<std::size_t>(p.circuit[i][u].op);
-        if (op < a.unitOps.size()) ++a.unitOps[op];
-        if (u < p.circuitState[i].size())
-            a.circuitActivity += std::fabs(p.circuitState[i][u]);
+    a.programLength = static_cast<std::uint16_t>(p.program[i].size());
+    a.executedInstructions = p.vmExecuted[i];
+    for (const auto& instruction : p.program[i]) {
+        const std::size_t op = static_cast<std::size_t>(instruction.op);
+        if (op < a.opCounts.size()) ++a.opCounts[op];
     }
-    if (a.circuitUnits != 0)
-        a.circuitActivity /= static_cast<float>(a.circuitUnits);
+    for (float value : p.vmState[i]) a.registerActivity += std::fabs(value);
+    a.registerActivity /= static_cast<float>(genetics::kVmRegisters);
     a.id = p.id[i];
     return a;
 }
@@ -76,7 +75,8 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
         v.role = static_cast<RoleVis>(s.role);
         v.labelX = s.labelX; v.labelY = s.labelY;
         v.meanAggr = s.meanAggr; v.meanDef = s.meanDef; v.meanSize = s.meanSize; v.meanSpeed = s.meanSpeed;
-        v.meanUnits = s.meanUnits; v.meanActiveUnits = s.meanActiveUnits;
+        v.meanProgramInstructions = s.meanProgramInstructions;
+        v.meanOutputConnectedInstructions = s.meanOutputConnectedInstructions;
         v.established = v.count >= genetics::kEstablished;
         out.species.push_back(std::move(v));
     }
@@ -131,19 +131,19 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
             s.animalIntake = p.animalIntake[i];
             s.generation = p.generation[i];
             s.parentId = p.parent[i];
-            s.units.reserve(p.circuit[i].size());
-            for (std::size_t u = 0; u < p.circuit[i].size(); ++u) {
-                const auto& gene = p.circuit[i][u];
+            s.units.reserve(p.program[i].size());
+            for (std::size_t u = 0; u < p.program[i].size(); ++u) {
+                const auto& instruction = p.program[i][u];
                 SelectedVis::Unit unit;
-                unit.op = static_cast<std::uint8_t>(gene.op);
-                unit.output = gene.output;
-                unit.sourceA = gene.sourceA;
-                unit.sourceB = gene.sourceB;
-                unit.weight = u < p.circuitWeights[i].size() ? p.circuitWeights[i][u] : gene.weight;
-                unit.inheritedWeight = gene.weight;
-                unit.bias = gene.bias;
-                unit.plasticity = gene.plasticity;
-                if (u < p.circuitState[i].size()) unit.value = p.circuitState[i][u];
+                unit.op = static_cast<std::uint8_t>(instruction.op);
+                unit.dst = instruction.dst;
+                unit.sourceA = instruction.srcA;
+                unit.sourceB = instruction.srcB;
+                unit.immediate = instruction.immediate;
+                const auto valueRegister = instruction.op == genetics::VmOp::Output
+                                               ? instruction.srcA
+                                               : instruction.dst;
+                unit.value = p.vmState[i][valueRegister % genetics::kVmRegisters];
                 s.units.push_back(unit);
             }
             s.outputs[0] = p.ax[i];

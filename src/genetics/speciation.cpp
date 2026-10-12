@@ -52,8 +52,50 @@ void SpeciesTable::project(const float* g, std::span<const UnitGene> circuit, fl
     }
 }
 
+void SpeciesTable::project(const float* g, std::span<const VmInstruction> program, float* out) {
+    std::fill(out, out + kDistGenes, 0.0f);
+    for (std::size_t i = 0; i < kDistTraitGenes; ++i) out[i] = g[kDistIndex[i]];
+    std::array<bool, kVmOutputs> ports{};
+    std::size_t branches = 0;
+    for (const auto& instruction : program) {
+        const auto op = static_cast<std::size_t>(instruction.op);
+        if (op < kVmOpCount) out[kDistTraitGenes + op] += 1.0f;
+        branches += instruction.op == VmOp::JumpIfPositive || instruction.op == VmOp::JumpIfNegative;
+        if (instruction.op == VmOp::Output) ports[instruction.dst % kVmOutputs] = true;
+    }
+    if (!program.empty()) {
+        const float n = static_cast<float>(program.size());
+        for (std::size_t i = 0; i < kVmOpCount; ++i) out[kDistTraitGenes + i] /= n;
+        out[kDistTraitGenes + kVmOpCount] = static_cast<float>(
+            std::log2(static_cast<double>(program.size()) + 1.0) /
+            std::log2(static_cast<double>(kVmMaxInstructions) + 1.0));
+        out[kDistTraitGenes + kVmOpCount + 1] =
+            static_cast<float>(countOutputConnectedInstructions(program)) / n;
+        out[kDistTraitGenes + kVmOpCount + 2] =
+            static_cast<float>(branches) / n +
+            static_cast<float>(std::count(ports.begin(), ports.end(), true)) /
+                static_cast<float>(kVmOutputs);
+    }
+}
+
 void SpeciesTable::project(const float* g, float* out) {
-    project(g, {}, out);
+    project(g, std::span<const UnitGene>{}, out);
+}
+
+std::uint32_t SpeciesTable::addFounder(const float* genome, const char* genus, const char* epithet,
+                                       float hue, std::uint32_t genusIndex, std::uint64_t tick,
+                                       std::span<const VmInstruction> program) {
+    Species s;
+    s.id = static_cast<std::uint32_t>(sp_.size());
+    s.genus = genusIndex;
+    s.genusName = genus;
+    s.epithet = epithet;
+    s.hue = hue; s.sat = 0.58f; s.val = 0.88f;
+    project(genome, program, s.exemplar.data());
+    s.founded = tick;
+    s.announced = true;
+    sp_.push_back(std::move(s));
+    return sp_.back().id;
 }
 
 float SpeciesTable::distance(const float* p, const std::array<float, kDistGenes>& ex) {
@@ -83,7 +125,7 @@ std::uint32_t SpeciesTable::addFounder(const float* genome, const char* genus, c
 
 std::uint32_t SpeciesTable::classify(const float* genome, std::uint32_t parentSp, std::uint64_t tick,
                                      CounterRng& rng) {
-    return classify(genome, {}, parentSp, tick, rng);
+    return classify(genome, std::span<const UnitGene>{}, parentSp, tick, rng);
 }
 
 std::uint32_t SpeciesTable::classify(const float* genome, std::span<const UnitGene> circuit,
@@ -122,6 +164,41 @@ std::uint32_t SpeciesTable::classify(const float* genome, std::span<const UnitGe
     return sp_.back().id;
 }
 
+std::uint32_t SpeciesTable::classify(const float* genome, std::span<const VmInstruction> program,
+                                     std::uint32_t parentSp, std::uint64_t tick, CounterRng& rng) {
+    float p[kDistGenes];
+    project(genome, program, p);
+
+    if (parentSp != kNone && parentSp < sp_.size() && sp_[parentSp].alive &&
+        distance(p, sp_[parentSp].exemplar) <= delta)
+        return parentSp;
+
+    std::uint32_t best = kNone;
+    float bestD = delta;
+    for (const auto& s : sp_) {
+        if (!s.alive) continue;
+        const float d = distance(p, s.exemplar);
+        if (d <= bestD) { bestD = d; best = s.id; }
+    }
+    if (best != kNone) return best;
+
+    Species s;
+    s.id = static_cast<std::uint32_t>(sp_.size());
+    s.parent = parentSp;
+    const Species* par = (parentSp != kNone && parentSp < sp_.size()) ? &sp_[parentSp] : nullptr;
+    s.genus = par ? par->genus : s.id;
+    s.genusName = par ? par->genusName : "Incerta";
+    s.epithet = makeEpithet(rng.next() ^ (tick * 0x9E37ull));
+    const float h0 = par ? par->hue : 30.0f;
+    s.hue = std::fmod(h0 + (rng.uniform() * 2.0f - 1.0f) * 26.0f + 360.0f, 360.0f);
+    s.sat = clampf((par ? par->sat : 0.6f) + (rng.uniform() - 0.5f) * 0.22f, 0.40f, 0.78f);
+    s.val = clampf((par ? par->val : 0.85f) + (rng.uniform() - 0.5f) * 0.22f, 0.62f, 0.95f);
+    std::copy(p, p + kDistGenes, s.exemplar.begin());
+    s.founded = tick;
+    sp_.push_back(std::move(s));
+    return sp_.back().id;
+}
+
 void SpeciesTable::revive(std::uint32_t id, std::uint64_t tick) {
     Species& s = sp_[id];
     s.alive = true;
@@ -140,7 +217,7 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
     for (auto& s : sp_) {
         s.count = 0;
         s.meanAggr = s.meanDef = s.meanSize = s.meanSpeed = 0;
-        s.meanUnits = s.meanActiveUnits = 0;
+        s.meanProgramInstructions = s.meanOutputConnectedInstructions = 0;
         s.meanDiet = s.meanHeatTolerance = 0;
     }
     for (auto& a : sum) a.fill(0.0f);
@@ -154,14 +231,15 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         const float* g = &pool.genome[static_cast<std::size_t>(i) * kGenomeLen];
         for (std::size_t d = 0; d < kDistTraitGenes; ++d) sum[id][d] += g[kDistIndex[d]];
         float signature[kDistGenes];
-        project(g, pool.circuit[i], signature);
+        project(g, pool.program[i], signature);
         for (std::size_t d = kDistTraitGenes; d < kDistGenes; ++d) sum[id][d] += signature[d];
         s.meanAggr += pool.aggression[i];
         s.meanDef += pool.defense[i];
         s.meanSize += pool.radius[i];
         s.meanSpeed += pool.vMax[i];
-        s.meanUnits += static_cast<float>(pool.circuit[i].size());
-        s.meanActiveUnits += static_cast<float>(countOutputConnectedUnits(pool.circuit[i]));
+        s.meanProgramInstructions += static_cast<float>(pool.program[i].size());
+        s.meanOutputConnectedInstructions += static_cast<float>(
+            countOutputConnectedInstructions(pool.program[i]));
         s.meanDiet += pool.dietPreference[i];
         s.meanHeatTolerance += pool.heatTolerance[i];
         if (hist[id].empty()) hist[id].assign(GX * GY, 0);
@@ -218,7 +296,8 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         for (std::size_t d = 0; d < kDistGenes; ++d)
             s.exemplar[d] = 0.7f * s.exemplar[d] + 0.3f * (sum[s.id][d] * inv);
         s.meanAggr *= inv; s.meanDef *= inv; s.meanSize *= inv; s.meanSpeed *= inv;
-        s.meanUnits *= inv; s.meanActiveUnits *= inv;
+        s.meanProgramInstructions *= inv;
+        s.meanOutputConnectedInstructions *= inv;
         s.meanDiet *= inv; s.meanHeatTolerance *= inv;
         s.peak = std::max(s.peak, s.count);
         s.role = s.meanAggr < 0.22f ? Role::Grazer : (s.meanAggr < 0.55f ? Role::Omnivore : Role::Predator);

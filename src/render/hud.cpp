@@ -204,7 +204,8 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     std::snprintf(buf, sizeof buf, "species  %zu extant  ·  %u established (8+)",
                   snap.species.size(), est);
     label(font, buf, sp.x + 14, sp.y + 140, 10, col(theme::textDim, 190));
-    label(font, "click to focus · wheel to scroll", sp.x + 14, sp.y + 151, 9,
+    label(font, "active/total instructions · click focus · wheel scroll", sp.x + 14,
+          sp.y + 151, 9,
           col(theme::textDim, 150));
     const std::uint32_t maxCount = snap.species.empty() ? 1 : snap.species.front().count;
     for (int i = 0; i < nRows; ++i) {
@@ -215,8 +216,9 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         if (vs.focusSpecies == static_cast<std::int64_t>(s.id)) DrawRectangleLinesEx(row, 1.5f, col(s.color, 230));
         DrawCircleV({row.x + 12, row.y + 10}, 5.0f, col(s.color));
         label(font, s.shortName.c_str(), row.x + 24, row.y + 3, 13, col(s.established ? theme::text : theme::textDim));
-        std::snprintf(buf, sizeof buf, "%.0f/%.0fu", static_cast<double>(s.meanActiveUnits),
-                      static_cast<double>(s.meanUnits));
+        std::snprintf(buf, sizeof buf, "%.0f/%.0f",
+                      static_cast<double>(s.meanOutputConnectedInstructions),
+                      static_cast<double>(s.meanProgramInstructions));
         rightLabel(font, buf, row.x + row.width - 42, row.y + 4, 10, col(theme::textDim));
         std::snprintf(buf, sizeof buf, "%c", roleLetter(s.role));
         label(font, buf, row.x + row.width - 62, row.y + 3, 12, col(theme::textDim));
@@ -319,18 +321,21 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
     std::snprintf(v0, sizeof v0, "%u", t.population);
     std::snprintf(v1, sizeof v1, "%.2f bits", static_cast<double>(t.shannonBits));
     std::snprintf(v2, sizeof v2, "%u", t.speciesCount);
-    std::snprintf(v3, sizeof v3, "%.1f", static_cast<double>(t.meanOutputConnectedUnits));
+    std::snprintf(v3, sizeof v3, "%.1f / %.1f",
+                  static_cast<double>(t.meanExecutedInstructions),
+                  static_cast<double>(t.meanProgramInstructions));
     chart(font, {cp.x + pad, cp.y + pad, cw, ch}, {"population", hist.population, col(theme::accent), v0, false, true}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 2 * pad + ch, cw, ch}, {"diversity", hist.entropy, col(speciesColor(2)), v1, true, false}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 3 * pad + 2 * ch, cw, ch},
           {"established species (8+)", hist.species, col(speciesColor(3)), v2, true, false}, hist.markers);
     chart(font, {cp.x + pad, cp.y + 4 * pad + 3 * ch, cw, ch},
-          {"mean output-connected units", hist.complexity, col({154, 174, 124}), v3, false, false}, hist.markers);
+          {"instructions executed / inherited", hist.executedInstructions, col({154, 174, 124}),
+           v3, false, false}, hist.markers);
 
     // ---------------- bottom left: inspector + hints ----------------
     std::snprintf(buf, sizeof buf, "%d fps    sim x%.1f (target x%.0f)", fps, static_cast<double>(vs.simRate), static_cast<double>(vs.speed));
     label(font, buf, M, static_cast<float>(sh) - 40, 12, col(theme::textDim));
-    label(font, "space pause  |  1/2 color  |  w wakes  |  g fields  |  h hud  |  f fit  |  tab species  |  click follows  |  u subunits  |  up/down speed",
+    label(font, "space pause  |  1/2 color  |  w wakes  |  g fields  |  h hud  |  f fit  |  tab species  |  click follows  |  u genome  |  up/down speed",
           M, static_cast<float>(sh) - 24, 11, col(theme::textDim, 150));
 
     if (snap.selected.valid) {
@@ -381,7 +386,7 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         signedBar(font, "cohesion", s.outputs[5], x, y, w); y += 16;
         signedBar(font, "hunt strategy", s.outputs[6], x, y, w); y += 16;
         signedBar(font, "reproduction", s.outputs[7], x, y, w);
-        std::snprintf(buf, sizeof buf, "%zu computational units  |  U microscope",
+        std::snprintf(buf, sizeof buf, "%zu program instructions  |  U microscope",
                       s.units.size());
         label(font, buf, x, ip.y + ip.height - 14, 10, col(theme::accent, 210));
     }
