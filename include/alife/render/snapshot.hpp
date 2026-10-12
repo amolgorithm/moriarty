@@ -15,7 +15,8 @@ struct AgentVis {
     float x = 0, y = 0, vx = 0, vy = 0, heading = 0;
     float r = 5;          // body radius, world units
     float energy = 0.5f;  // fraction of max
-    float aggr = 0, def = 0, speed = 0.3f, sense = 0.3f, eta = 0.5f, repThr = 0.7f;  // all 0..1
+    float aggr = 0, def = 0, speed = 0.3f, sense = 0.3f, eta = 0.5f, repThr = 0.7f;
+    float dietPreference = 0.5f, heatTolerance = 0.5f;  // all 0..1
     float age01 = 0;
     std::uint32_t species = 0;
     std::uint16_t circuitUnits = 0;
@@ -54,7 +55,7 @@ struct SelectedVis {
     float plantIntake = 0, animalIntake = 0;
     std::uint32_t generation = 0;
     std::uint64_t parentId = 0;
-    float outputs[5] = {0, 0, 0, 0, 0};  // movement intent, then expressed uptake/resource/defense signals
+    float outputs[6] = {0, 0, 0, 0, 0, 0};  // movement, uptake, resource, defense, and hunt strategy
     bool hasPrey = false, hasThreat = false;
     float preyX = 0, preyY = 0, threatX = 0, threatY = 0;
     std::string state;

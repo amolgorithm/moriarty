@@ -139,6 +139,7 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         s.count = 0;
         s.meanAggr = s.meanDef = s.meanSize = s.meanSpeed = 0;
         s.meanUnits = 0;
+        s.meanDiet = s.meanHeatTolerance = 0;
     }
     for (auto& a : sum) a.fill(0.0f);
 
@@ -158,6 +159,8 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         s.meanSize += pool.radius[i];
         s.meanSpeed += pool.vMax[i];
         s.meanUnits += static_cast<float>(pool.circuit[i].size());
+        s.meanDiet += pool.dietPreference[i];
+        s.meanHeatTolerance += pool.heatTolerance[i];
         if (hist[id].empty()) hist[id].assign(GX * GY, 0);
         const int cx = std::min(GX - 1, static_cast<int>(k.px[i] / W * GX));
         const int cy = std::min(GY - 1, static_cast<int>(k.py[i] / H * GY));
@@ -212,6 +215,7 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         for (std::size_t d = 0; d < kDistGenes; ++d)
             s.exemplar[d] = 0.7f * s.exemplar[d] + 0.3f * (sum[s.id][d] * inv);
         s.meanAggr *= inv; s.meanDef *= inv; s.meanSize *= inv; s.meanSpeed *= inv; s.meanUnits *= inv;
+        s.meanDiet *= inv; s.meanHeatTolerance *= inv;
         s.peak = std::max(s.peak, s.count);
         s.role = s.meanAggr < 0.22f ? Role::Grazer : (s.meanAggr < 0.55f ? Role::Omnivore : Role::Predator);
         if (anchor[s.id][2] > 0 && modeCell[s.id] >= 0) {

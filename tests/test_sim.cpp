@@ -29,6 +29,9 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
     CHECK(w.pool.write().vy.size() == n);
     CHECK(w.pool.species.size() == n);
     CHECK(w.pool.bodyEnergy.size() == n);
+    CHECK(w.pool.dietPreference.size() == n);
+    CHECK(w.pool.heatTolerance.size() == n);
+    CHECK(w.pool.huntBias.size() == n);
     CHECK(w.pool.genome.size() == static_cast<std::size_t>(n) * kGenomeLen);
     CHECK(w.pool.circuit.size() == n);
     CHECK(w.pool.circuitState.size() == n);

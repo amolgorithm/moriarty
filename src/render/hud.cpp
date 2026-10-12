@@ -347,9 +347,12 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         std::snprintf(buf, sizeof buf, "generation %u   age %.0f s   id %llu", s.generation, static_cast<double>(s.ageSec),
                       static_cast<unsigned long long>(s.a.id));
         label(font, buf, ip.x + 14, ip.y + 52, 11, col(theme::textDim, 190));
+        std::snprintf(buf, sizeof buf, "diet %.2f   heat tolerance %.2f",
+                      static_cast<double>(s.a.dietPreference), static_cast<double>(s.a.heatTolerance));
+        label(font, buf, ip.x + 14, ip.y + 64, 10, col(theme::textDim, 190));
 
         const float x = ip.x + 14, w = ip.width - 28;
-        float y = ip.y + 74;
+        float y = ip.y + 82;
         bar(font, "energy", s.a.energy, x, y, w, col(theme::accent)); y += 18;
         const Color tc = col(sv ? sv->color : theme::accent, 220);
         bar(font, "size", (s.a.r - 3.0f) / 5.5f, x, y, w, tc); y += 16;
@@ -369,7 +372,8 @@ void Hud::draw(const Font& font, const RenderSnapshot& snap, const telemetry::Te
         signedBar(font, "intent y", s.outputs[1], x, y, w); y += 16;
         signedBar(font, "uptake", s.outputs[2], x, y, w); y += 16;
         signedBar(font, "resource", s.outputs[3], x, y, w); y += 16;
-        signedBar(font, "defense", s.outputs[4], x, y, w);
+        signedBar(font, "defense", s.outputs[4], x, y, w); y += 16;
+        signedBar(font, "hunt strategy", s.outputs[5], x, y, w);
         std::snprintf(buf, sizeof buf, "%zu computational units  |  U microscope",
                       s.units.size());
         label(font, buf, x, ip.y + ip.height - 14, 10, col(theme::accent, 210));

@@ -21,6 +21,8 @@ AgentVis makeVis(const World& w, std::uint32_t i) {
     a.sense = (p.senseR[i] - 14.0f) / 34.0f;
     a.eta = 0.35f + 0.65f * p.eta[i];
     a.repThr = (p.repThresh[i] - 0.55f) / 0.4f;
+    a.dietPreference = p.dietPreference[i];
+    a.heatTolerance = p.heatTolerance[i];
     a.age01 = std::clamp(p.age[i] / w.cfg.eco.lifespan, 0.0f, 1.0f);
     a.species = p.species[i];
     a.circuitUnits = static_cast<std::uint16_t>(p.circuit[i].size());
@@ -146,6 +148,7 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
             s.outputs[2] = (p.harvestGain[i] - 1.0f) / 0.75f;
             s.outputs[3] = p.resourceBias[i];
             s.outputs[4] = p.protection[i];
+            s.outputs[5] = p.huntBias[i];
             for (std::uint32_t j = 0; j < n; ++j) {
                 if (p.id[j] == p.preyId[i]) { s.hasPrey = true; s.preyX = out.agents[j].x; s.preyY = out.agents[j].y; }
                 if (p.id[j] == p.threatId[i]) { s.hasThreat = true; s.threatX = out.agents[j].x; s.threatY = out.agents[j].y; }

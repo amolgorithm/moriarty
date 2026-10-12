@@ -381,7 +381,7 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
                {panel.x + 16.0f, panel.y + 60.0f}, 9.0f, 1.0f, col(theme::textDim));
 
     static constexpr const char* kOps[] = {"id", "add", "mul", "sub", "min", "max", "abs", "tanh", "memory"};
-    static constexpr const char* kPorts[] = {"x-force", "y-force", "uptake", "resource", "defense", "cohesion"};
+    static constexpr const char* kPorts[] = {"x-force", "y-force", "uptake", "resource", "defense", "cohesion", "hunt"};
     static constexpr Rgb kUnitColors[] = {
         {114, 177, 155}, {125, 164, 216}, {199, 148, 218}, {224, 151, 111},
         {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124},

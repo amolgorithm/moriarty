@@ -5,7 +5,7 @@
 namespace alife {
 
 // Scalar phenotype genes; executable behavioral circuits have variable length.
-inline constexpr std::size_t kGenomeLen = 9;
+inline constexpr std::size_t kGenomeLen = 11;
 inline constexpr float kMaxSense = 48.0f;  // sense radius cap, grid cell must be >= this
 
 // Ecology and metabolism. Units: energy per sim second, lengths in world units.
@@ -28,6 +28,8 @@ struct EcoParams {
     float senseCost = 0.00006f;  // x senseR^2
     float moveCost = 0.0002f;    // x mass x speed^2
     float defenseCost = 0.14f;   // x def x mass^0.75
+    float heatStressCost = 0.65f; // x local heat load for organisms without heat tolerance
+    float heatToleranceCost = 0.10f; // x invested heat tolerance x mass^0.75
     float bite = 2.7f;           // resource units per second at full appetite
     float energyPerR = 1.0f;
     // predation
@@ -40,8 +42,8 @@ struct EcoParams {
     float carcassPerMass = 8.0f; // finite chemical-energy equivalent stored in body tissue
     float lunge = 1.5f;          // energy per attack attempt
     // life history
-    float lifespan = 200.0f;     // s
-    float maturity = 28.0f;      // s
+    float lifespan = 140.0f;     // s
+    float maturity = 14.0f;      // s
     float pathogen = 0.002f;     // host-specific disease: hazard/s = pathogen x (species share)^2
     float vTop = 58.0f;          // top swimming speed, normalizes speed genes
 };

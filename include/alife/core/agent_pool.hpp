@@ -22,11 +22,11 @@ struct AgentPool {
 
     // warm: meso tick
     avec<float> energy, bodyEnergy, digest, age;  // digest: seconds until the next hunt is possible
-    avec<float> eta, senseR, vMax, aggression, repThresh;  // decoded phenotype
+    avec<float> eta, senseR, vMax, aggression, repThresh, dietPreference, heatTolerance;  // decoded phenotype
     avec<float> radius, mass, defense, eMax, explore;
     avec<float> wx, wy;      // OU wander state (colored noise)
     avec<float> ax, ay;      // steering command from the controller
-    avec<float> harvestGain, resourceBias, protection;
+    avec<float> harvestGain, resourceBias, protection, huntBias;
     avec<float> plantIntake, animalIntake;
     avec<std::uint8_t> action;
     avec<float> heading;     // smoothed facing, for rendering

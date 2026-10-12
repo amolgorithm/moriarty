@@ -16,6 +16,8 @@ Phenotype decode(const float* g, float vTop) {
     p.eMax = 40.0f * p.mass;
     p.defense = g[kDefense];
     p.explore = 0.1f + 0.9f * g[kExplore];
+    p.dietPreference = g[kDietPreference];
+    p.heatTolerance = g[kHeatTolerance];
     return p;
 }
 

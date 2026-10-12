@@ -112,9 +112,11 @@ void mesoStep(World& w, ThreadPool&) {
         {
             const float sz = (p.radius[i] - 3.0f) / 5.5f;
             const float pf = std::pow(std::max(0.0f, 1.0f - sz), 1.5f), pc = std::pow(std::max(0.0f, sz), 1.5f);
+            const float dietBias = 2.0f * p.dietPreference[i] - 1.0f;
             const float d = std::max(16.0f, 0.6f * sr);
             auto food = [&](float qx, float qy) {
-                return pf * w.R[0].sample(qx, qy, W, H) + pc * w.R[1].sample(qx, qy, W, H);
+                return pf * (1.0f - 0.5f * dietBias) * w.R[0].sample(qx, qy, W, H) +
+                       pc * (1.0f + 0.5f * dietBias) * w.R[1].sample(qx, qy, W, H);
             };
             const float gx = food(x + d, y) - food(x - d, y);
             const float gy = food(x, y + d) - food(x, y - d);
@@ -170,7 +172,9 @@ void mesoStep(World& w, ThreadPool&) {
         const float hunger = std::clamp(1.0f - eFrac, 0.0f, 1.0f);
         const float forageDrive = hunger * (1.0f - 0.65f * p.aggression[i]);
         const float huntDrive = hunger * std::clamp((p.aggression[i] - 0.25f) / 0.75f, 0.0f, 1.0f) *
-                                std::clamp(preyValue * 180.0f, 0.0f, 1.0f);
+                                std::clamp(preyValue * 180.0f, 0.0f, 1.0f) *
+                                std::clamp(1.0f + 0.75f * expression.outputs[genetics::kHuntStrategyOutput],
+                                           0.2f, 1.75f);
         const float fleeDrive = threat >= 0
                                     ? (0.35f + 0.65f * hunger) *
                                           (0.5f + 0.5f * (1.0f - p.defense[i])) *
@@ -196,6 +200,7 @@ void mesoStep(World& w, ThreadPool&) {
         p.harvestGain[i] = std::clamp(1.0f + 0.75f * expression.outputs[2], 0.2f, 1.8f);
         p.resourceBias[i] = expression.outputs[3];
         p.protection[i] = std::max(0.0f, expression.outputs[4]);
+        p.huntBias[i] = expression.outputs[genetics::kHuntStrategyOutput];
         sc.crowd[i] = static_cast<std::uint8_t>(std::min(crowd, 40));
         sc.preyIdx[i] = prey;
         sc.preyDist[i] = dPrey;
@@ -224,8 +229,10 @@ void mesoStep(World& w, ThreadPool&) {
                                    std::pow(1.0f - aggr, 1.5f) * p.harvestGain[i] * dt;
             const float gain = eco.energyPerR * (0.35f + 0.65f * p.eta[i]);
             float room = std::max(0.0f, (eMax - p.energy[i]) / gain);
-            float pref0 = std::clamp(pref[0] - 0.35f * p.resourceBias[i], 0.0f, 1.0f);
-            float pref1 = std::clamp(pref[1] + 0.35f * p.resourceBias[i], 0.0f, 1.0f);
+            const float dietBias = 2.0f * p.dietPreference[i] - 1.0f;
+            const float expressedBias = std::clamp(p.resourceBias[i] + 0.75f * dietBias, -1.0f, 1.0f);
+            float pref0 = std::clamp(pref[0] - 0.35f * expressedBias, 0.0f, 1.0f);
+            float pref1 = std::clamp(pref[1] + 0.35f * expressedBias, 0.0f, 1.0f);
             const float prefSum = pref0 + pref1;
             if (prefSum > 0.0f) { pref0 /= prefSum; pref1 /= prefSum; }
             else { pref0 = 0.5f; pref1 = 0.5f; }
@@ -299,7 +306,11 @@ void mesoStep(World& w, ThreadPool&) {
         const float m75 = std::pow(p.mass[i], 0.75f);
         const float noise = std::exp(0.15f * rng.normal());
         const float stress = 1.0f + eco.crowdStress * static_cast<float>(sc.crowd[i]);
+        const float heatLoad = w.Q.v[cell] / (1.0f + w.Q.v[cell]);
+        const float thermalCost = eco.heatStressCost * heatLoad * (1.0f - p.heatTolerance[i]) +
+                                  eco.heatToleranceCost * p.heatTolerance[i];
         const float cost = stress * eco.basal * m75 * (0.7f + 0.6f * p.eta[i]) * noise +
+                           thermalCost * m75 +
                            eco.senseCost * p.senseR[i] * p.senseR[i] +
                            eco.moveCost * p.mass[i] * speed * speed + eco.defenseCost * p.defense[i] * m75 +
                            eco.aggrCost * aggr * m75 +

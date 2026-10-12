@@ -56,12 +56,31 @@ TEST_CASE("scalar phenotype parameters trade off through the same genotype map")
     CHECK(decode(fast, 58.0f).aggression > decode(slow, 58.0f).aggression);
 }
 
+TEST_CASE("diet and heat-tolerance genes decode to selectable phenotype traits") {
+    float genome[kGenomeLen];
+    neutralGenome(genome);
+    genome[kDietPreference] = 0.9f;
+    genome[kHeatTolerance] = 0.1f;
+    const auto phenotype = decode(genome, 58.0f);
+    CHECK(phenotype.dietPreference == doctest::Approx(0.9f));
+    CHECK(phenotype.heatTolerance == doctest::Approx(0.1f));
+}
+
 TEST_CASE("a circuit can make resource uptake depend on sensed hunger") {
     const Circuit circuit{{UnitOp::Identity, 8, 0, 2, 1.0f, 0.0f}};
     CircuitInputs hungry{}, full{};
     hungry[8] = 0.8f;
     full[8] = -0.8f;
     CHECK(evaluateCircuit(circuit, hungry).outputs[2] > evaluateCircuit(circuit, full).outputs[2]);
+}
+
+TEST_CASE("the hunt-strategy port is an evolvable circuit output") {
+    const Circuit circuit{{UnitOp::Identity, 0, 0,
+                           static_cast<std::uint8_t>(kHuntStrategyOutput), 1.0f, 0.0f}};
+    CircuitInputs inputs{};
+    inputs[0] = 0.75f;
+    CHECK(evaluateCircuit(circuit, inputs).outputs[kHuntStrategyOutput] ==
+          doctest::Approx(0.75f));
 }
 
 TEST_CASE("the ancestor starts with a minimal sensor-to-interface program") {

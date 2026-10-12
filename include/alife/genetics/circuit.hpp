@@ -11,7 +11,8 @@
 namespace alife::genetics {
 
 inline constexpr std::size_t kCircuitInputs = 16;
-inline constexpr std::size_t kCircuitOutputs = 6;
+inline constexpr std::size_t kCircuitOutputs = 7;
+inline constexpr std::size_t kHuntStrategyOutput = 6;
 inline constexpr std::size_t kMaxCircuitUnits = 96;
 inline constexpr std::uint8_t kNoCircuitOutput = 0xFF;
 

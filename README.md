@@ -25,10 +25,14 @@ Use a Release or RelWithDebInfo build to watch the sim. Presets: `dev`, `debug`,
 `tsan` (no viewer). Other options: `-DALIFE_BUILD_VIEWER=OFF`, `-DALIFE_NATIVE_ARCH=ON`.
 
 ```
-moriarty_headless 1200 60
+moriarty_headless 240 30 12345 0.35
 moriarty_viewer --warm 300
 moriarty_viewer --shot a.png --zoom 4 --frames 120
 ```
+
+The headless runner accepts an optional seed and resource-regrowth rate after the reporting interval,
+so matched-seed ecology experiments can be repeated rather than judging evolution from one species
+count.
 
 ## Reading and controlling the viewer
 
@@ -64,7 +68,10 @@ simulation. Runs are deterministic for a given seed.
   reproduction; the environment also advances.
 - Macro, 5 s: species bookkeeping and interaction-history decay.
 
-**Heritable substrate.** Organisms inherit 9 scalar parameters and a variable-length,
+For faster evolutionary experiments, organisms mature at 14 simulated seconds and have a nominal
+lifespan of 140 seconds. These are accelerated model timescales, not biological predictions.
+
+**Heritable substrate.** Organisms inherit 11 scalar parameters and a variable-length,
 topologically ordered circuit (`genetics/circuit.hpp`). Each unit combines earlier unit outputs or
 local sensory inputs using generic arithmetic/nonlinear operators. Circuit outputs connect to the
 body's physical interfaces: motion, uptake, resource allocation, and defense. Unit duplication,
@@ -77,7 +84,13 @@ trait or program divergence; starting genetic variation is not misreported as th
 Circuits are bounded programs with feed-forward connections and recurrent memory units; each
 organism currently has a maximum of 96 units. Sensory inputs include food, prey, threats, energy,
 currents, conspecific density/alignment, local food abundance, and age. Outputs influence steering,
-resource uptake, food preference, defense, and social cohesion. Each unit carries a heritable
+resource uptake, food preference, defense, social cohesion, and a heritable circuit-controlled
+hunt-strategy drive. The selected-organism inspector exposes diet affinity, heat tolerance, and the
+current hunt-strategy value; headless species summaries report mean diet and heat traits.
+New inherited diet-affinity genes affect which food field an organism tracks and consumes; heat
+tolerance genes trade extra upkeep in cool conditions for lower metabolic penalties in locally
+heated microhabitats. Waste heat is produced by organisms, diffuses, and reduces resource renewal,
+coupling density, physiology, and food availability. Each unit carries a heritable
 plasticity rate; an eligibility trace is adjusted by recent net energy change, changing that
 organism's effective unit weights during its lifetime. The inherited program sets the learning rate,
 not a scripted skill; offspring begin from inherited weights and learn anew. Execution adds metabolic
@@ -93,7 +106,8 @@ validated physical thermodynamic model.
 
 **Ecology and selection.**
 - Two abstract spatial food fields regrow under variable conditions: fine suspended particles favor
-  smaller bodies and coarse particles favor larger bodies, with trait/circuit preference affecting
+  smaller bodies and coarse particles favor larger bodies, with body size, inherited diet affinity,
+  and circuit preference affecting
   intake. Grazing removes finite local stock; it is not a named plant species or infinite passive
   energy. Predation bites transfer the prey's reserve and finite embodied tissue-energy; offspring
   tissue must be paid for by the parent.
@@ -122,10 +136,16 @@ validated physical thermodynamic model.
 - Environmental seasons, weather, disturbances, and currents create changing local conditions.
 - Reproduction transfers energy and pays offspring construction costs. No fitness score, immigration,
   or automatic population rescue is applied by the macro step.
+- The headless runner reports mean generation depth alongside population, established taxa,
+  circuit-unit count, feeding source, and energy-balance residual. Use several seeds and compare
+  those outcomes with resource conditions; a rise in taxa or circuit length alone is not evidence of
+  adaptation.
 
 **Evolution and speciation.** Asexual reproduction or local conspecific recombination transfers
 scalar genes and circuits. Scalar mutation rates are heritable; circuit mutations change instruction
-content and structure. Species are clusters in both scalar-trait and circuit-architecture space.
+content and structure. New traits are selected only through their effects on energy balance,
+survival, and reproduction; no reward is assigned to genome or circuit size. Species are clusters in
+scalar-trait and circuit-architecture space.
 Lineages survive, branch, or go extinct under their local ecological outcomes; the simulation does
 not guarantee a species boom or monotonic complexity growth.
 
@@ -135,6 +155,7 @@ The implementation draws on, but does not reproduce, these research systems and 
 
 - Ofria & Wilke (2004), [Avida: A Software Platform for Research in Computational Evolutionary Biology](https://doi.org/10.1162/106454604773563612), *Artificial Life* 10(2):191–229. Avida motivates executable heritable digital organisms and controlled experiments. Task-reward environments are explicit selection design, not proof of unscripted ecology.
 - Lenski, Ofria, Pennock & Adami (2003), [The evolutionary origin of complex features](https://doi.org/10.1038/nature01568), *Nature* 423:139–144. Digital organisms evolved coordinated logic functions through heritable instruction changes under defined selection conditions.
+- Stanley & Miikkulainen (2002), [Evolving neural networks through augmenting topologies](https://doi.org/10.1162/106365602320169811), *Evolutionary Computation* 10(2):99–127. NEAT uses historical markings and fitness-sharing speciation to protect structural innovations; Moriarty's species are currently lineage clusters, not NEAT-style protected niches.
 - Clark, Hickinbotham & Stepney (2017), [Semantic closure demonstrated by the evolution of a universal constructor architecture in an artificial chemistry](https://doi.org/10.1098/rsif.2016.1033), *Journal of the Royal Society Interface* 14:20161033. Stringmol illustrates recursively encoded copying and construction; this project does not yet implement semantic closure or self-constructing organisms.
 - Taylor et al. (2016), [Open-Ended Evolution: Perspectives from the OEE Workshop in York](https://doi.org/10.1162/artl_a_00210), *Artificial Life* 22(3):408–423. OEE has multiple definitions and requires evidence of sustained novelty and complexity, not just a flexible mechanism.
 

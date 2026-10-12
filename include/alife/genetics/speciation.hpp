@@ -28,6 +28,7 @@ struct Species {
     bool alive = true, announced = false;
     std::uint32_t count = 0, peak = 0;
     float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0, meanUnits = 0;
+    float meanDiet = 0.5f, meanHeatTolerance = 0.5f;
     float labelX = 0, labelY = 0;
     Role role = Role::Grazer;
 

@@ -111,6 +111,7 @@ std::uint32_t World::addAgent(const float* genome, float x, float y, float energ
     const auto ph = genetics::decode(genome, cfg.eco.vTop);
     pool.eta[i] = ph.eta; pool.senseR[i] = ph.senseR; pool.vMax[i] = ph.vMax;
     pool.aggression[i] = ph.aggression; pool.repThresh[i] = ph.repThresh;
+    pool.dietPreference[i] = ph.dietPreference; pool.heatTolerance[i] = ph.heatTolerance;
     pool.radius[i] = ph.radius; pool.mass[i] = ph.mass; pool.defense[i] = ph.defense;
     pool.eMax[i] = ph.eMax; pool.explore[i] = ph.explore;
     pool.energy[i] = std::min(energy, ph.eMax);
