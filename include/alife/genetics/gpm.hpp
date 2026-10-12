@@ -18,6 +18,9 @@ struct Phenotype {
     float explore = 0.5f;
     float dietPreference = 0.5f;
     float heatTolerance = 0.5f;
+    float immunity = 0.5f;
+    float repair = 0.5f;
+    float digestion = 0.5f;
 };
 
 Phenotype decode(const float* genomeRow, float vTop);

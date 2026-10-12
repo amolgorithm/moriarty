@@ -1,7 +1,5 @@
 #include "alife/core/grid.hpp"
 
-#include <vector>
-
 namespace alife {
 
 ToroidalGrid::ToroidalGrid(float w, float h, float cell) : worldW(w), worldH(h) {
@@ -18,18 +16,19 @@ void ToroidalGrid::rebuild(const float* px, const float* py, std::size_t n) {
     std::fill(cellStart.begin(), cellStart.end(), 0u);
     sorted.resize(n);
 
-    std::vector<std::uint32_t> cellOf(n);
+    cellOf_.resize(n);
     for (std::size_t i = 0; i < n; ++i) {
         const std::size_t c = static_cast<std::size_t>(cellY(py[i])) * static_cast<std::size_t>(nx) +
                               static_cast<std::size_t>(cellX(px[i]));
-        cellOf[i] = static_cast<std::uint32_t>(c);
+        cellOf_[i] = static_cast<std::uint32_t>(c);
         ++cellStart[c + 1];
     }
     for (std::size_t c = 0; c < nCells; ++c) cellStart[c + 1] += cellStart[c];
 
-    // TODO(phase 4): per-thread histograms to parallelize count and scatter
-    std::vector<std::uint32_t> cursor(cellStart.begin(), cellStart.end() - 1);
-    for (std::size_t i = 0; i < n; ++i) sorted[cursor[cellOf[i]]++] = static_cast<std::uint32_t>(i);
+    cursor_.resize(nCells);
+    std::copy_n(cellStart.begin(), nCells, cursor_.begin());
+    for (std::size_t i = 0; i < n; ++i)
+        sorted[cursor_[cellOf_[i]]++] = static_cast<std::uint32_t>(i);
 }
 
 }  // namespace alife

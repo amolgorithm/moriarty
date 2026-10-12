@@ -94,7 +94,9 @@ struct World {
     struct Scratch {
         std::vector<int> preyIdx;
         std::vector<float> preyDist;
+        std::vector<float> energyAtStart;
         std::vector<std::uint8_t> crowd;
+        std::vector<std::uint8_t> mated;
         std::vector<std::uint8_t> dead, cause;
     } scratch;
 

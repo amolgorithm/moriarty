@@ -9,7 +9,7 @@ Phenotype decode(const float* g, float vTop) {
     p.vMax = 8.0f + (vTop - 8.0f) * g[kSpeed];
     p.aggression = g[kAggr];
     p.repThresh = 0.55f + 0.40f * g[kRepThr];
-    p.mutRate = 0.004f + 0.076f * g[kMutRate];
+    p.mutRate = 0.012f + 0.168f * g[kMutRate];
     p.radius = 3.0f + 5.5f * g[kSize];
     const float r4 = p.radius / 4.0f;
     p.mass = r4 * r4;
@@ -18,6 +18,9 @@ Phenotype decode(const float* g, float vTop) {
     p.explore = 0.1f + 0.9f * g[kExplore];
     p.dietPreference = g[kDietPreference];
     p.heatTolerance = g[kHeatTolerance];
+    p.immunity = g[kImmunity];
+    p.repair = g[kRepair];
+    p.digestion = g[kDigestion];
     return p;
 }
 

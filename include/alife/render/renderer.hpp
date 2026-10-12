@@ -1,6 +1,7 @@
 #pragma once
 #include <raylib.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -69,6 +70,7 @@ class Renderer {
     Vector2 pressPos_{0, 0};
     int hover_ = -1;
     std::uint64_t lastTick_ = ~0ull;
+    std::size_t unitScrollRows_ = 0;
 };
 
 }  // namespace alife::render

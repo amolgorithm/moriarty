@@ -13,7 +13,7 @@ using namespace alife;
 
 namespace {
 void run(World& w, int ticks) {
-    ThreadPool pool(1);
+    ThreadPool pool(4);
     sim::Scheduler s(w, pool);
     for (int i = 0; i < ticks; ++i) s.stepOnce();
 }
@@ -31,7 +31,12 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
     CHECK(w.pool.bodyEnergy.size() == n);
     CHECK(w.pool.dietPreference.size() == n);
     CHECK(w.pool.heatTolerance.size() == n);
+    CHECK(w.pool.immunity.size() == n);
+    CHECK(w.pool.repair.size() == n);
+    CHECK(w.pool.digestion.size() == n);
     CHECK(w.pool.huntBias.size() == n);
+    CHECK(w.pool.socialBias.size() == n);
+    CHECK(w.pool.reproductionBias.size() == n);
     CHECK(w.pool.genome.size() == static_cast<std::size_t>(n) * kGenomeLen);
     CHECK(w.pool.circuit.size() == n);
     CHECK(w.pool.circuitState.size() == n);
@@ -55,6 +60,17 @@ TEST_CASE("world seeds a single lineage and every agent column stays aligned") {
         CHECK(w.pool.energy[i] <= w.pool.eMax[i] * 1.31f);
         CHECK(!w.pool.circuit[i].empty());
     }
+}
+
+TEST_CASE("the enlarged world preserves ecological resolution and founder density") {
+    const SimConfig config;
+    CHECK(config.worldW / static_cast<float>(config.eco.fieldW) ==
+          doctest::Approx(1728.0f / 144.0f));
+    CHECK(config.worldH / static_cast<float>(config.eco.fieldH) ==
+          doctest::Approx(1152.0f / 96.0f));
+    CHECK(static_cast<double>(config.initialAgents) / (config.worldW * config.worldH) ==
+          doctest::Approx(1800.0 / (1728.0 * 1152.0)));
+    CHECK(config.initialAgents < config.maxAgents);
 }
 
 TEST_CASE("same seed, same universe") {

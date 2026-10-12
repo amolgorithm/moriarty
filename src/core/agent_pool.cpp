@@ -12,9 +12,11 @@ void AgentPool::forEachColumn(F&& f) {
     f(energy, z); f(bodyEnergy, z); f(digest, z); f(age, z);
     f(eta, 1.0f); f(senseR, 20.0f); f(vMax, 30.0f); f(aggression, z); f(repThresh, 0.7f);
     f(dietPreference, 0.5f); f(heatTolerance, 0.5f);
+    f(immunity, 0.5f); f(repair, 0.5f); f(digestion, 0.5f);
     f(radius, 5.0f); f(mass, 1.5f); f(defense, z); f(eMax, 60.0f); f(explore, 0.5f);
     f(wx, z); f(wy, z); f(ax, z); f(ay, z);
-    f(harvestGain, 1.0f); f(resourceBias, z); f(protection, z); f(huntBias, z); f(heading, z);
+    f(harvestGain, 1.0f); f(resourceBias, z); f(protection, z); f(huntBias, z);
+    f(socialBias, z); f(reproductionBias, z); f(heading, z);
     f(plantIntake, z); f(animalIntake, z);
     f(action, static_cast<std::uint8_t>(AgentAction::Explore));
     f(cell, z32); f(species, z32); f(generation, z32);

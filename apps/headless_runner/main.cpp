@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <vector>
 
@@ -74,40 +75,80 @@ int main(int argc, char** argv) {
     std::vector<std::uint32_t> extant;
     for (std::size_t i = 0; i < liveCounts.size(); ++i)
         if (liveCounts[i] > 0) extant.push_back(static_cast<std::uint32_t>(i));
+    std::vector<std::array<double, 3>> taxonTraits(liveCounts.size());
+    for (std::uint32_t i = 0; i < world.pool.count(); ++i) {
+        const auto species = world.pool.species[i];
+        taxonTraits[species][0] += world.pool.immunity[i];
+        taxonTraits[species][1] += world.pool.repair[i];
+        taxonTraits[species][2] += world.pool.digestion[i];
+    }
     std::sort(extant.begin(), extant.end(),
               [&liveCounts](std::uint32_t a, std::uint32_t b) { return liveCounts[a] > liveCounts[b]; });
     std::uint64_t generationSum = 0;
     std::uint32_t maxGeneration = 0;
+    double meanImmunity = 0.0, meanRepair = 0.0, meanDigestion = 0.0, meanMutationSigma = 0.0;
     for (std::uint32_t i = 0; i < world.pool.count(); ++i) {
         generationSum += world.pool.generation[i];
         maxGeneration = std::max(maxGeneration, world.pool.generation[i]);
+        meanImmunity += world.pool.immunity[i];
+        meanRepair += world.pool.repair[i];
+        meanDigestion += world.pool.digestion[i];
+        const float* genome = &world.pool.genome[static_cast<std::size_t>(i) * alife::kGenomeLen];
+        meanMutationSigma += 0.012f + 0.168f * genome[alife::genetics::kMutRate];
     }
     std::printf("generation depth: mean %.2f, max %u\n",
                 world.pool.count() ? static_cast<double>(generationSum) / world.pool.count() : 0.0,
                 maxGeneration);
+    if (world.pool.count() > 0) {
+        const double n = static_cast<double>(world.pool.count());
+        std::printf("mean heritable traits: immunity %.3f, repair %.3f, digestion %.3f, mutation sigma %.3f/gene\n",
+                    meanImmunity / n, meanRepair / n, meanDigestion / n, meanMutationSigma / n);
+    }
     const std::size_t shown = std::min<std::size_t>(25, extant.size());
     std::printf("\nextant taxa at end: %zu total; showing up to 25\n", extant.size());
     for (std::size_t i = 0; i < shown; ++i) {
         const auto& sp = world.species.all()[extant[i]];
-        std::printf("  %-22s n=%-5u units=%.1f aggr=%.2f size=%.1f speed=%.0f def=%.2f diet=%.2f heat=%.2f %s\n",
+        std::printf("  %-22s n=%-5u units=%.1f active=%.1f aggr=%.2f size=%.1f speed=%.0f def=%.2f diet=%.2f heat=%.2f immune=%.2f repair=%.2f digest=%.2f %s\n",
                     sp.fullName().c_str(), liveCounts[extant[i]], static_cast<double>(sp.meanUnits),
+                    static_cast<double>(sp.meanActiveUnits),
                     static_cast<double>(sp.meanAggr), static_cast<double>(sp.meanSize), static_cast<double>(sp.meanSpeed),
                     static_cast<double>(sp.meanDef), static_cast<double>(sp.meanDiet),
                     static_cast<double>(sp.meanHeatTolerance),
+                    taxonTraits[extant[i]][0] / liveCounts[extant[i]],
+                    taxonTraits[extant[i]][1] / liveCounts[extant[i]],
+                    taxonTraits[extant[i]][2] / liveCounts[extant[i]],
                     sp.parent == alife::genetics::SpeciesTable::kNone ? "founder" : "derived");
     }
-    double learnedDelta = 0.0;
-    std::size_t learnedUnits = 0, memoryUnits = 0;
+    double learnedDelta = 0.0, connectedUnits = 0.0;
+    std::size_t learnedUnits = 0, memoryUnits = 0, comparisonUnits = 0;
+    std::array<std::uint32_t, alife::genetics::kCircuitOutputs> outputCarriers{};
     for (std::uint32_t i = 0; i < world.pool.count(); ++i) {
         const auto& circuit = world.pool.circuit[i];
+        std::array<bool, alife::genetics::kCircuitOutputs> hasOutput{};
+        connectedUnits += static_cast<double>(alife::genetics::countOutputConnectedUnits(circuit));
         for (std::size_t u = 0; u < circuit.size(); ++u) {
             learnedDelta += std::abs(world.pool.circuitWeights[i][u] - circuit[u].weight);
             ++learnedUnits;
             memoryUnits += circuit[u].op == alife::genetics::UnitOp::Memory;
+            comparisonUnits += circuit[u].op == alife::genetics::UnitOp::GreaterThan ||
+                               circuit[u].op == alife::genetics::UnitOp::LessThan;
+            if (circuit[u].output < hasOutput.size()) hasOutput[circuit[u].output] = true;
         }
+        for (std::size_t output = 0; output < hasOutput.size(); ++output)
+            outputCarriers[output] += hasOutput[output] ? 1u : 0u;
     }
-    std::printf("subunit adaptation: mean |learned-inherited weight| %.4f; memory units %zu\n",
-                learnedUnits ? learnedDelta / static_cast<double>(learnedUnits) : 0.0, memoryUnits);
+    std::printf("circuit structure: output-connected units %.2f / total %.2f; comparison units %zu; memory units %zu\n",
+                world.pool.count() ? connectedUnits / world.pool.count() : 0.0,
+                world.pool.count() ? static_cast<double>(learnedUnits) / world.pool.count() : 0.0,
+                comparisonUnits, memoryUnits);
+    std::printf("routed-output carriers: x %u/%u y %u/%u uptake %u/%u resource %u/%u\n",
+                outputCarriers[0], world.pool.count(), outputCarriers[1], world.pool.count(),
+                outputCarriers[2], world.pool.count(), outputCarriers[3], world.pool.count());
+    std::printf("routed-output carriers: defense %u/%u cohesion %u/%u hunt %u/%u reproduction %u/%u\n",
+                outputCarriers[4], world.pool.count(), outputCarriers[5], world.pool.count(),
+                outputCarriers[6], world.pool.count(), outputCarriers[7], world.pool.count());
+    std::printf("subunit adaptation: mean |learned-inherited weight| %.4f\n",
+                learnedUnits ? learnedDelta / static_cast<double>(learnedUnits) : 0.0);
     const double balance = world.energyInventory() + world.stats.dissipatedEnergy -
                            world.stats.initialEnergy - world.stats.externalEnergy;
     std::printf("energy ledger: start %.3f + external %.3f = inventory %.3f + dissipated %.3f (residual %.3g)\n",

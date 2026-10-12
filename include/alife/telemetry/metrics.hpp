@@ -13,6 +13,7 @@ struct Telemetry {
     std::uint32_t speciesCount = 0;
     float shannonBits = 0.0f;
     float meanCircuitUnits = 0.0f;
+    float meanOutputConnectedUnits = 0.0f;
     float meanEnergy = 0.0f;
     float totalHeat = 0.0f;
 };

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "alife/core/aligned_alloc.hpp"
 
@@ -52,6 +53,7 @@ class ToroidalGrid {
     int nx = 0, ny = 0;
     avec<std::uint32_t> cellStart;  // nx*ny + 1 prefix sums
     avec<std::uint32_t> sorted;     // agent indices grouped by cell
+    std::vector<std::uint32_t> cellOf_, cursor_;
 
    private:
     float invW_ = 0, invH_ = 0;

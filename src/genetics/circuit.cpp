@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 namespace alife::genetics {
 namespace {
@@ -15,17 +16,21 @@ float readSource(std::size_t source, std::size_t unitIndex, std::span<const floa
 
 }  // namespace
 
-CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const CircuitInputs& inputs,
-                                  std::span<const float> previousUnits,
-                                  std::span<const float> effectiveWeights) {
-    CircuitEvaluation result;
-    result.units.resize(circuit.size());
-    result.eligibility.resize(circuit.size());
+std::array<float, kCircuitOutputs> evaluateCircuitInPlace(
+    std::span<const UnitGene> circuit, const CircuitInputs& inputs, std::span<float> unitState,
+    std::span<float> eligibilityTrace, std::span<const float> effectiveWeights,
+    float traceRetention) {
+    if (unitState.size() < circuit.size() || eligibilityTrace.size() < circuit.size())
+        throw std::invalid_argument("circuit state buffers must cover every circuit unit");
+    if (!std::isfinite(traceRetention) || traceRetention < 0.0f || traceRetention > 1.0f)
+        throw std::invalid_argument("eligibility trace retention must be in [0, 1]");
+
+    std::array<float, kCircuitOutputs> outputs{};
     std::array<std::size_t, kCircuitOutputs> counts{};
     for (std::size_t i = 0; i < circuit.size(); ++i) {
         const UnitGene& gene = circuit[i];
-        const float a = readSource(gene.sourceA, i, result.units, inputs);
-        const float b = readSource(gene.sourceB, i, result.units, inputs);
+        const float a = readSource(gene.sourceA, i, unitState, inputs);
+        const float b = readSource(gene.sourceB, i, unitState, inputs);
         float value = 0.0f;
         switch (gene.op) {
             case UnitOp::Identity: value = a; break;
@@ -37,26 +42,60 @@ CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const Circu
             case UnitOp::Absolute: value = std::fabs(a); break;
             case UnitOp::Tanh: value = std::tanh(a + b); break;
             case UnitOp::Memory: {
-                const float previous = i < previousUnits.size() ? previousUnits[i] : 0.0f;
+                const float previous = unitState[i];
                 value = 0.8f * previous + 0.2f * std::tanh(a + b);
                 break;
             }
+            case UnitOp::GreaterThan: value = a > b ? 1.0f : -1.0f; break;
+            case UnitOp::LessThan: value = a < b ? 1.0f : -1.0f; break;
             case UnitOp::Count: value = 0.0f; break;
         }
-        result.eligibility[i] = value;
+        eligibilityTrace[i] = traceRetention * eligibilityTrace[i] + (1.0f - traceRetention) * value;
         const float weight = i < effectiveWeights.size() ? effectiveWeights[i] : gene.weight;
         value = std::clamp(value * weight + gene.bias, -1.0f, 1.0f);
-        result.units[i] = value;
+        unitState[i] = value;
         if (gene.output < kCircuitOutputs) {
-            result.outputs[gene.output] += value;
+            outputs[gene.output] += value;
             ++counts[gene.output];
         }
     }
     for (std::size_t i = 0; i < kCircuitOutputs; ++i) {
         if (counts[i] != 0)
-            result.outputs[i] = std::clamp(result.outputs[i] / static_cast<float>(counts[i]), -1.0f, 1.0f);
+            outputs[i] = std::clamp(outputs[i] / static_cast<float>(counts[i]), -1.0f, 1.0f);
     }
+    return outputs;
+}
+
+CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const CircuitInputs& inputs,
+                                  std::span<const float> previousUnits,
+                                  std::span<const float> effectiveWeights) {
+    CircuitEvaluation result;
+    result.units.resize(circuit.size());
+    result.eligibility.resize(circuit.size());
+    std::copy_n(previousUnits.begin(), std::min(previousUnits.size(), circuit.size()), result.units.begin());
+    result.outputs = evaluateCircuitInPlace(circuit, inputs, result.units, result.eligibility,
+                                            effectiveWeights);
     return result;
+}
+
+std::size_t countOutputConnectedUnits(std::span<const UnitGene> circuit) noexcept {
+    std::array<bool, kMaxCircuitUnits> connected{};
+    for (std::size_t i = std::min(circuit.size(), kMaxCircuitUnits); i-- > 0;) {
+        const UnitGene& gene = circuit[i];
+        connected[i] = connected[i] || gene.output < kCircuitOutputs;
+        if (!connected[i]) continue;
+        if (gene.sourceA >= kCircuitInputs) {
+            const std::size_t source = gene.sourceA - kCircuitInputs;
+            if (source < i) connected[source] = true;
+        }
+        if (gene.sourceB >= kCircuitInputs) {
+            const std::size_t source = gene.sourceB - kCircuitInputs;
+            if (source < i) connected[source] = true;
+        }
+    }
+    return static_cast<std::size_t>(std::count(connected.begin(),
+                                               connected.begin() + std::min(circuit.size(), kMaxCircuitUnits),
+                                               true));
 }
 
 void applyRewardModulatedPlasticity(std::span<const UnitGene> circuit,

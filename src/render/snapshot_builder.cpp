@@ -23,6 +23,9 @@ AgentVis makeVis(const World& w, std::uint32_t i) {
     a.repThr = (p.repThresh[i] - 0.55f) / 0.4f;
     a.dietPreference = p.dietPreference[i];
     a.heatTolerance = p.heatTolerance[i];
+    a.immunity = p.immunity[i];
+    a.repair = p.repair[i];
+    a.digestion = p.digestion[i];
     a.age01 = std::clamp(p.age[i] / w.cfg.eco.lifespan, 0.0f, 1.0f);
     a.species = p.species[i];
     a.circuitUnits = static_cast<std::uint16_t>(p.circuit[i].size());
@@ -73,7 +76,7 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
         v.role = static_cast<RoleVis>(s.role);
         v.labelX = s.labelX; v.labelY = s.labelY;
         v.meanAggr = s.meanAggr; v.meanDef = s.meanDef; v.meanSize = s.meanSize; v.meanSpeed = s.meanSpeed;
-        v.meanUnits = s.meanUnits;
+        v.meanUnits = s.meanUnits; v.meanActiveUnits = s.meanActiveUnits;
         v.established = v.count >= genetics::kEstablished;
         out.species.push_back(std::move(v));
     }
@@ -148,7 +151,9 @@ void buildSnapshot(World& w, RenderSnapshot& out, std::uint64_t selectedId) {
             s.outputs[2] = (p.harvestGain[i] - 1.0f) / 0.75f;
             s.outputs[3] = p.resourceBias[i];
             s.outputs[4] = p.protection[i];
-            s.outputs[5] = p.huntBias[i];
+            s.outputs[5] = p.socialBias[i];
+            s.outputs[6] = p.huntBias[i];
+            s.outputs[7] = p.reproductionBias[i];
             for (std::uint32_t j = 0; j < n; ++j) {
                 if (p.id[j] == p.preyId[i]) { s.hasPrey = true; s.preyX = out.agents[j].x; s.preyY = out.agents[j].y; }
                 if (p.id[j] == p.threatId[i]) { s.hasThreat = true; s.threatX = out.agents[j].x; s.threatY = out.agents[j].y; }

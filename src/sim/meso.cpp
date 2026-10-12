@@ -42,14 +42,14 @@ void returnEnergyToFood(World& w, float x, float y, float energy) {
 
 // Metabolic layer, 0.25 s: sensing -> controller, feeding, predation, upkeep,
 // death, reproduction. Fully endogenous: no fitness function anywhere.
-void mesoStep(World& w, ThreadPool&) {
+void mesoStep(World& w, ThreadPool& tp) {
     auto& p = w.pool;
     const auto& cfg = w.cfg;
     const auto& eco = cfg.eco;
     const float dt = cfg.dtPhys * static_cast<float>(cfg.mesoEvery);
     const float W = cfg.worldW, H = cfg.worldH;
 
-    stepEnvironment(w, dt);
+    stepEnvironment(w, dt, tp);
 
     const std::uint32_t n = p.count();
     if (n == 0) return;
@@ -60,10 +60,13 @@ void mesoStep(World& w, ThreadPool&) {
     sc.crowd.assign(n, 0);
     sc.dead.assign(n, 0);
     sc.cause.assign(n, kAlive);
+    sc.energyAtStart.resize(n);
+    sc.mated.assign(n, 0);
     const auto& k = p.read();
 
     // ---- pass 1: sense the neighborhood, express the inherited circuit ----
-    for (std::uint32_t i = 0; i < n; ++i) {
+    tp.parallelFor(n, 256, [&](std::size_t begin, std::size_t end) {
+      for (std::uint32_t i = static_cast<std::uint32_t>(begin); i < end; ++i) {
         const float x = k.px[i], y = k.py[i], sr = p.senseR[i], sr2 = sr * sr;
         const float eFrac = p.energy[i] / p.eMax[i];
         int prey = -1, threat = -1;
@@ -163,17 +166,17 @@ void mesoStep(World& w, ThreadPool&) {
         const float localFood = w.R[0].sample(x, y, W, H) + w.R[1].sample(x, y, W, H);
         inputs[14] = std::clamp(2.0f * localFood / std::max(1.0f, 2.0f * eco.Kmax) - 1.0f, -1.0f, 1.0f);
         inputs[15] = std::clamp(2.0f * p.age[i] / eco.lifespan - 1.0f, -1.0f, 1.0f);
-        const auto expression = genetics::evaluateCircuit(p.circuit[i], inputs, p.circuitState[i],
-                                                          p.circuitWeights[i]);
-        p.circuitState[i] = expression.units;
-        for (std::size_t u = 0; u < expression.eligibility.size(); ++u)
-            p.circuitEligibility[i][u] = 0.85f * p.circuitEligibility[i][u] +
-                                         0.15f * expression.eligibility[u];
+        const float localHeat = w.Q.sample(x, y, W, H);
+        inputs[16] = std::clamp(2.0f * localHeat / (1.0f + localHeat) - 1.0f, -1.0f, 1.0f);
+        inputs[17] = std::clamp(2.0f * preyValue * 180.0f, -1.0f, 1.0f);
+        inputs[18] = threat >= 0 ? std::clamp(1.0f - 2.0f * dThreat / sr, -1.0f, 1.0f) : -1.0f;
+        const auto outputs = genetics::evaluateCircuitInPlace(
+            p.circuit[i], inputs, p.circuitState[i], p.circuitEligibility[i], p.circuitWeights[i], 0.85f);
         const float hunger = std::clamp(1.0f - eFrac, 0.0f, 1.0f);
         const float forageDrive = hunger * (1.0f - 0.65f * p.aggression[i]);
         const float huntDrive = hunger * std::clamp((p.aggression[i] - 0.25f) / 0.75f, 0.0f, 1.0f) *
                                 std::clamp(preyValue * 180.0f, 0.0f, 1.0f) *
-                                std::clamp(1.0f + 0.75f * expression.outputs[genetics::kHuntStrategyOutput],
+                                std::clamp(1.0f + 0.75f * outputs[genetics::kHuntStrategyOutput],
                                            0.2f, 1.75f);
         const float fleeDrive = threat >= 0
                                     ? (0.35f + 0.65f * hunger) *
@@ -182,11 +185,11 @@ void mesoStep(World& w, ThreadPool&) {
                                     : 0.0f;
         const float preyUrgency = prey >= 0 ? std::clamp(1.0f - dPrey / sr, 0.0f, 1.0f) : 0.0f;
         const float foodUrgency = std::clamp(0.5f * (std::fabs(fx) + std::fabs(fy)), 0.0f, 1.0f);
-        const float socialDrive = expression.outputs[5];
+        const float socialDrive = outputs[5];
         p.ax[i] = 7.0f * (forageDrive * fx + huntDrive * cx - fleeDrive * thx) +
-                  2.0f * expression.outputs[0] + 3.5f * socialDrive * kcx;
+                  2.0f * outputs[0] + 3.5f * socialDrive * kcx;
         p.ay[i] = 7.0f * (forageDrive * fy + huntDrive * cy - fleeDrive * thy) +
-                  2.0f * expression.outputs[1] + 3.5f * socialDrive * kcy;
+                  2.0f * outputs[1] + 3.5f * socialDrive * kcy;
         if (fleeDrive > 0.25f)
             p.action[i] = static_cast<std::uint8_t>(AgentAction::Evade);
         else if (hunger < 0.12f)
@@ -197,22 +200,24 @@ void mesoStep(World& w, ThreadPool&) {
             p.action[i] = static_cast<std::uint8_t>(AgentAction::Forage);
         else
             p.action[i] = static_cast<std::uint8_t>(AgentAction::Explore);
-        p.harvestGain[i] = std::clamp(1.0f + 0.75f * expression.outputs[2], 0.2f, 1.8f);
-        p.resourceBias[i] = expression.outputs[3];
-        p.protection[i] = std::max(0.0f, expression.outputs[4]);
-        p.huntBias[i] = expression.outputs[genetics::kHuntStrategyOutput];
+        p.harvestGain[i] = std::clamp(1.0f + 0.75f * outputs[2], 0.2f, 1.8f);
+        p.resourceBias[i] = outputs[3];
+        p.protection[i] = std::max(0.0f, outputs[4]);
+        p.socialBias[i] = socialDrive;
+        p.huntBias[i] = outputs[genetics::kHuntStrategyOutput];
+        p.reproductionBias[i] = outputs[genetics::kReproductionStrategyOutput];
         sc.crowd[i] = static_cast<std::uint8_t>(std::min(crowd, 40));
         sc.preyIdx[i] = prey;
         sc.preyDist[i] = dPrey;
         p.preyId[i] = prey >= 0 ? p.id[static_cast<std::size_t>(prey)] : 0;
         p.threatId[i] = threat >= 0 ? p.id[static_cast<std::size_t>(threat)] : 0;
-    }
+      }
+    });
 
     // ---- pass 2: feeding, predation, upkeep, death (random order, no positional bias) ----
     CounterRng orderRng(cfg.seed, w.tick, 0xBEEFull);
     const std::uint32_t start = static_cast<std::uint32_t>(orderRng.next() % n);
-    std::vector<float> energyAtStart(n);
-    for (std::uint32_t i = 0; i < n; ++i) energyAtStart[i] = p.energy[i];
+    for (std::uint32_t i = 0; i < n; ++i) sc.energyAtStart[i] = p.energy[i];
     for (std::uint32_t t = 0; t < n; ++t) {
         const std::uint32_t i = (start + t) % n;
         if (sc.dead[i]) continue;
@@ -243,7 +248,7 @@ void mesoStep(World& w, ThreadPool&) {
                 const float extracted = before - w.R[ch].v[cell];
                 const float energyInput = extracted * eco.energyPerR;
                 const float beforeEnergy = p.energy[i];
-                p.energy[i] += extracted * gain;
+                p.energy[i] += extracted * gain * (0.65f + 0.35f * p.digestion[i]);
                 const float energyGain = p.energy[i] - beforeEnergy;
                 if (energyInput >= energyGain)
                     w.stats.dissipatedEnergy += energyInput - energyGain;
@@ -283,7 +288,8 @@ void mesoStep(World& w, ThreadPool&) {
                     const float carcass = std::max(0.0f, p.energy[J]) + p.bodyEnergy[J];
                     const float beforeMeal = p.energy[i];
                     const float energyGain =
-                        std::min(std::clamp(eco.predEff, 0.0f, 1.0f) * carcass,
+                        std::min(std::clamp(eco.predEff, 0.0f, 1.0f) *
+                                     (0.65f + 0.35f * p.digestion[i]) * carcass,
                                  std::max(0.0f, eMax * 1.3f - beforeMeal));
                     p.energy[i] = beforeMeal + energyGain;
                     const float assimilated = p.energy[i] - beforeMeal;
@@ -311,6 +317,9 @@ void mesoStep(World& w, ThreadPool&) {
                                   eco.heatToleranceCost * p.heatTolerance[i];
         const float cost = stress * eco.basal * m75 * (0.7f + 0.6f * p.eta[i]) * noise +
                            thermalCost * m75 +
+                           eco.immunityCost * p.immunity[i] * m75 +
+                           eco.repairCost * p.repair[i] * m75 +
+                           eco.digestionCost * p.digestion[i] * m75 +
                            eco.senseCost * p.senseR[i] * p.senseR[i] +
                            eco.moveCost * p.mass[i] * speed * speed + eco.defenseCost * p.defense[i] * m75 +
                            eco.aggrCost * aggr * m75 +
@@ -328,7 +337,7 @@ void mesoStep(World& w, ThreadPool&) {
         else
             w.stats.externalEnergy += heat - metabolicCost;
         p.age[i] += dt;
-        const float reward = std::clamp(8.0f * (p.energy[i] - energyAtStart[i]) /
+        const float reward = std::clamp(8.0f * (p.energy[i] - sc.energyAtStart[i]) /
                                             std::max(1.0f, eMax),
                                         -1.0f, 1.0f);
         genetics::applyRewardModulatedPlasticity(p.circuit[i], p.circuitEligibility[i], reward,
@@ -340,12 +349,15 @@ void mesoStep(World& w, ThreadPool&) {
         } else {
             // frequency-dependent mortality (kill-the-winner): common species carry more disease
             const float share = static_cast<float>(w.species.at(p.species[i]).count) / static_cast<float>(n);
-            if (rng.uniform() < 1.0f - std::exp(-eco.pathogen * share * share * dt)) {
+            const float diseaseHazard = eco.pathogen * share * share *
+                                        (1.0f - 0.9f * p.immunity[i]);
+            if (rng.uniform() < 1.0f - std::exp(-diseaseHazard * dt)) {
                 sc.dead[i] = 1; sc.cause[i] = kStarved; ++w.stats.starved;
             }
             const float life = eco.lifespan * (0.8f + 0.25f * std::sqrt(p.mass[i]));
             if (!sc.dead[i] && p.age[i] > 0.5f * life) {
-                const float h = 0.5f * std::pow(p.age[i] / life, 4.0f);
+                const float h = 0.5f * std::pow(p.age[i] / life, 4.0f) *
+                                (1.0f - 0.9f * p.repair[i]);
                 if (rng.uniform() < 1.0f - std::exp(-h * dt)) { sc.dead[i] = 1; sc.cause[i] = kOld; ++w.stats.senescent; }
             }
         }
@@ -358,17 +370,20 @@ void mesoStep(World& w, ThreadPool&) {
 
     // ---- pass 3: reproduction (asexual, or recombination with a nearby conspecific) ----
     std::vector<Birth> births;
-    std::vector<std::uint8_t> mated(n, 0);
     const std::size_t room = cfg.maxAgents > n ? cfg.maxAgents - n : 0;
     for (std::uint32_t i = 0; i < n && births.size() < room; ++i) {
-        if (sc.dead[i] || p.age[i] < eco.maturity || p.energy[i] < p.repThresh[i] * p.eMax[i]) continue;
+        const float reproductionStrategy = p.reproductionBias[i];
+        const float reproductionThreshold =
+            p.repThresh[i] * std::clamp(1.0f - 0.20f * reproductionStrategy, 0.75f, 1.25f);
+        if (sc.dead[i] || p.age[i] < eco.maturity ||
+            p.energy[i] < reproductionThreshold * p.eMax[i]) continue;
         CounterRng rng(cfg.seed, w.tick, p.id[i] ^ 0xB177ull);
         const float x = k.px[i], y = k.py[i];
 
         int mate = -1;
         float best = 28.0f * 28.0f;
         w.grid.forNeighbors(x, y, [&](std::uint32_t j) {
-            if (j == i || sc.dead[j] || mated[j] || p.species[j] != p.species[i]) return;
+            if (j == i || sc.dead[j] || sc.mated[j] || p.species[j] != p.species[i]) return;
             if (p.age[j] < eco.maturity || p.energy[j] < 0.5f * p.repThresh[j] * p.eMax[j]) return;
             const float dx = wrapDelta(k.px[j] - x, W), dy = wrapDelta(k.py[j] - y, H);
             const float d2 = dx * dx + dy * dy;
@@ -377,13 +392,13 @@ void mesoStep(World& w, ThreadPool&) {
 
         Birth b;
         const float* gi = &p.genome[static_cast<std::size_t>(i) * kGenomeLen];
-        float rate = 0.004f + 0.076f * gi[genetics::kMutRate];
+        float rate = 0.012f + 0.168f * gi[genetics::kMutRate];
         bool recombined = false;
         if (mate >= 0 && rng.uniform() < 0.7f) {
             const float* gj = &p.genome[static_cast<std::size_t>(mate) * kGenomeLen];
             genetics::crossover(gi, gj, b.genome.data(), rng);
             b.circuit = genetics::crossoverCircuit(p.circuit[i], p.circuit[static_cast<std::size_t>(mate)], rng);
-            rate = 0.5f * (rate + 0.004f + 0.076f * gj[genetics::kMutRate]);
+            rate = 0.5f * (rate + 0.012f + 0.168f * gj[genetics::kMutRate]);
             recombined = true;
         } else {
             std::copy(gi, gi + kGenomeLen, b.genome.begin());
@@ -398,7 +413,9 @@ void mesoStep(World& w, ThreadPool&) {
         const float reproductionCost = 0.04f * p.eMax[i];
         const float available = p.energy[i] - constructionCost - bodyBuildCost - reproductionCost;
         if (available <= 0.0f) continue;
-        b.energy = std::min(0.5f * cph.eMax, 0.4f * available);
+        const float offspringReserve = std::clamp(0.5f + 0.25f * reproductionStrategy, 0.2f, 0.8f);
+        const float offspringAllocation = std::clamp(0.4f + 0.15f * reproductionStrategy, 0.15f, 0.65f);
+        b.energy = std::min(offspringReserve * cph.eMax, offspringAllocation * available);
         if (b.energy <= 0.0f) continue;
         const float beforeBirthCost = p.energy[i];
         p.energy[i] -= b.energy + constructionCost + bodyBuildCost + reproductionCost;
@@ -413,7 +430,7 @@ void mesoStep(World& w, ThreadPool&) {
             const float beforeCourtship = p.energy[mateIndex];
             p.energy[mateIndex] -= std::min(p.energy[mateIndex], 0.08f * p.eMax[mateIndex]);
             w.stats.dissipatedEnergy += beforeCourtship - p.energy[mateIndex];
-            mated[mateIndex] = 1;
+            sc.mated[mateIndex] = 1;
         }
         b.x = wrap(x + p.radius[i] * rng.normal(), W);
         b.y = wrap(y + p.radius[i] * rng.normal(), H);
@@ -422,7 +439,7 @@ void mesoStep(World& w, ThreadPool&) {
         b.parentId = p.id[i];
         b.generation = p.generation[i] + 1;
         births.push_back(b);
-        mated[i] = 1;
+        sc.mated[i] = 1;
     }
 
     // ---- apply: remove the dead (descending, swap-remove), then spawn ----

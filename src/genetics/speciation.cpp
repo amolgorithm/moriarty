@@ -31,13 +31,13 @@ void SpeciesTable::project(const float* g, std::span<const UnitGene> circuit, fl
     for (std::size_t i = 0; i < kDistTraitGenes; ++i) out[i] = g[kDistIndex[i]];
     for (const UnitGene& unit : circuit) {
         const auto op = static_cast<std::size_t>(unit.op);
-        if (op < 9) out[kDistTraitGenes + op] += 1.0f;
-        out[kDistTraitGenes + 11] += unit.plasticity;
+        if (op < kCircuitOperationCount) out[kDistTraitGenes + op] += 1.0f;
+        out[kDistTraitGenes + kCircuitOperationCount + 2] += unit.plasticity;
     }
     if (!circuit.empty()) {
-        for (std::size_t i = 0; i < 9; ++i)
+        for (std::size_t i = 0; i < kCircuitOperationCount; ++i)
             out[kDistTraitGenes + i] /= static_cast<float>(circuit.size());
-        out[kDistTraitGenes + 9] = static_cast<float>(
+        out[kDistTraitGenes + kCircuitOperationCount] = static_cast<float>(
             std::log2(static_cast<double>(circuit.size()) + 1.0) /
             std::log2(static_cast<double>(kMaxCircuitUnits) + 1.0));
         double connected = 0.0;
@@ -45,8 +45,10 @@ void SpeciesTable::project(const float* g, std::span<const UnitGene> circuit, fl
             connected += unit.sourceA >= kCircuitInputs ? 1.0 : 0.0;
             connected += unit.sourceB >= kCircuitInputs ? 1.0 : 0.0;
         }
-        out[kDistTraitGenes + 10] = static_cast<float>(connected / (2.0 * static_cast<double>(circuit.size())));
-        out[kDistTraitGenes + 11] /= static_cast<float>(circuit.size() * 0.25);
+        out[kDistTraitGenes + kCircuitOperationCount + 1] =
+            static_cast<float>(connected / (2.0 * static_cast<double>(circuit.size())));
+        out[kDistTraitGenes + kCircuitOperationCount + 2] /=
+            static_cast<float>(circuit.size() * 0.25);
     }
 }
 
@@ -138,7 +140,7 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
     for (auto& s : sp_) {
         s.count = 0;
         s.meanAggr = s.meanDef = s.meanSize = s.meanSpeed = 0;
-        s.meanUnits = 0;
+        s.meanUnits = s.meanActiveUnits = 0;
         s.meanDiet = s.meanHeatTolerance = 0;
     }
     for (auto& a : sum) a.fill(0.0f);
@@ -159,6 +161,7 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         s.meanSize += pool.radius[i];
         s.meanSpeed += pool.vMax[i];
         s.meanUnits += static_cast<float>(pool.circuit[i].size());
+        s.meanActiveUnits += static_cast<float>(countOutputConnectedUnits(pool.circuit[i]));
         s.meanDiet += pool.dietPreference[i];
         s.meanHeatTolerance += pool.heatTolerance[i];
         if (hist[id].empty()) hist[id].assign(GX * GY, 0);
@@ -214,7 +217,8 @@ void SpeciesTable::refresh(const AgentPool& pool, float W, float H, std::uint64_
         const float inv = 1.0f / static_cast<float>(s.count);
         for (std::size_t d = 0; d < kDistGenes; ++d)
             s.exemplar[d] = 0.7f * s.exemplar[d] + 0.3f * (sum[s.id][d] * inv);
-        s.meanAggr *= inv; s.meanDef *= inv; s.meanSize *= inv; s.meanSpeed *= inv; s.meanUnits *= inv;
+        s.meanAggr *= inv; s.meanDef *= inv; s.meanSize *= inv; s.meanSpeed *= inv;
+        s.meanUnits *= inv; s.meanActiveUnits *= inv;
         s.meanDiet *= inv; s.meanHeatTolerance *= inv;
         s.peak = std::max(s.peak, s.count);
         s.role = s.meanAggr < 0.22f ? Role::Grazer : (s.meanAggr < 0.55f ? Role::Omnivore : Role::Predator);

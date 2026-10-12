@@ -10,10 +10,11 @@
 
 namespace alife::genetics {
 
-inline constexpr std::size_t kCircuitInputs = 16;
-inline constexpr std::size_t kCircuitOutputs = 7;
+inline constexpr std::size_t kCircuitInputs = 19;
+inline constexpr std::size_t kCircuitOutputs = 8;
 inline constexpr std::size_t kHuntStrategyOutput = 6;
-inline constexpr std::size_t kMaxCircuitUnits = 96;
+inline constexpr std::size_t kReproductionStrategyOutput = 7;
+inline constexpr std::size_t kMaxCircuitUnits = 256;
 inline constexpr std::uint8_t kNoCircuitOutput = 0xFF;
 
 enum class UnitOp : std::uint8_t {
@@ -26,8 +27,12 @@ enum class UnitOp : std::uint8_t {
     Absolute,
     Tanh,
     Memory,
+    GreaterThan,
+    LessThan,
     Count
 };
+
+inline constexpr std::size_t kCircuitOperationCount = static_cast<std::size_t>(UnitOp::Count);
 
 // A low-level heritable computational unit. Sources address sensory inputs first,
 // then earlier units, making every expressed circuit a bounded, deterministic DAG.
@@ -53,6 +58,11 @@ struct CircuitEvaluation {
 CircuitEvaluation evaluateCircuit(std::span<const UnitGene> circuit, const CircuitInputs& inputs,
                                   std::span<const float> previousUnits = {},
                                   std::span<const float> effectiveWeights = {});
+std::array<float, kCircuitOutputs> evaluateCircuitInPlace(
+    std::span<const UnitGene> circuit, const CircuitInputs& inputs, std::span<float> unitState,
+    std::span<float> eligibilityTrace, std::span<const float> effectiveWeights = {},
+    float traceRetention = 0.0f);
+std::size_t countOutputConnectedUnits(std::span<const UnitGene> circuit) noexcept;
 void applyRewardModulatedPlasticity(std::span<const UnitGene> circuit,
                                     std::span<const float> eligibility, float reward,
                                     std::span<float> effectiveWeights);

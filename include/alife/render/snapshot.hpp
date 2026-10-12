@@ -17,10 +17,11 @@ struct AgentVis {
     float energy = 0.5f;  // fraction of max
     float aggr = 0, def = 0, speed = 0.3f, sense = 0.3f, eta = 0.5f, repThr = 0.7f;
     float dietPreference = 0.5f, heatTolerance = 0.5f;  // all 0..1
+    float immunity = 0.5f, repair = 0.5f, digestion = 0.5f;
     float age01 = 0;
     std::uint32_t species = 0;
     std::uint16_t circuitUnits = 0;
-    std::array<std::uint16_t, 9> unitOps{};
+    std::array<std::uint16_t, genetics::kCircuitOperationCount> unitOps{};
     float circuitActivity = 0;
     std::uint64_t id = 0;
 };
@@ -33,7 +34,7 @@ struct SpeciesVis {
     Rgb color{200, 200, 200};
     RoleVis role = RoleVis::Grazer;
     float labelX = 0, labelY = 0;
-    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0, meanUnits = 0;
+    float meanAggr = 0, meanDef = 0, meanSize = 0, meanSpeed = 0, meanUnits = 0, meanActiveUnits = 0;
     bool established = false;
 };
 
@@ -55,7 +56,7 @@ struct SelectedVis {
     float plantIntake = 0, animalIntake = 0;
     std::uint32_t generation = 0;
     std::uint64_t parentId = 0;
-    float outputs[6] = {0, 0, 0, 0, 0, 0};  // movement, uptake, resource, defense, and hunt strategy
+    std::array<float, genetics::kCircuitOutputs> outputs{};
     bool hasPrey = false, hasThreat = false;
     float preyX = 0, preyY = 0, threatX = 0, threatY = 0;
     std::string state;

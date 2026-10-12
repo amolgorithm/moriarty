@@ -21,7 +21,7 @@ void microStep(World& w, ThreadPool& tp) {
     const math::EulerMaruyama integ{gamma, 5.0f};
     const float ouK = std::sqrt(2.0f * dt / tauW);
 
-    tp.parallelFor(p.count(), 1024, [&](std::size_t b, std::size_t e) {
+    tp.parallelFor(p.count(), 256, [&](std::size_t b, std::size_t e) {
         for (std::size_t i = b; i < e; ++i) {
             CounterRng rng(cfg.seed, w.tick, p.id[i]);
             float x = rk.px[i], y = rk.py[i], vx = rk.vx[i], vy = rk.vy[i];

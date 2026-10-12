@@ -112,6 +112,7 @@ std::uint32_t World::addAgent(const float* genome, float x, float y, float energ
     pool.eta[i] = ph.eta; pool.senseR[i] = ph.senseR; pool.vMax[i] = ph.vMax;
     pool.aggression[i] = ph.aggression; pool.repThresh[i] = ph.repThresh;
     pool.dietPreference[i] = ph.dietPreference; pool.heatTolerance[i] = ph.heatTolerance;
+    pool.immunity[i] = ph.immunity; pool.repair[i] = ph.repair; pool.digestion[i] = ph.digestion;
     pool.radius[i] = ph.radius; pool.mass[i] = ph.mass; pool.defense[i] = ph.defense;
     pool.eMax[i] = ph.eMax; pool.explore[i] = ph.explore;
     pool.energy[i] = std::min(energy, ph.eMax);
@@ -127,7 +128,7 @@ void World::seedPopulation() {
     float base[kGenomeLen];
     std::fill(base, base + kGenomeLen, 0.5f);
     base[genetics::kAggr] = 0.18f;
-    base[genetics::kMutRate] = 0.45f;
+    base[genetics::kMutRate] = 0.42f;
     const genetics::Circuit ancestorCircuit = genetics::makeSeedCircuit();
     const std::uint32_t ancestor = species.addFounder(base, "Vita", "communis", 30.0f, 0, 0, ancestorCircuit);
 
@@ -137,7 +138,7 @@ void World::seedPopulation() {
         for (std::size_t k = 0; k < kGenomeLen; ++k)
             g[k] = std::clamp(base[k] + 0.035f * rng.normal(), 0.0f, 1.0f);
         g[genetics::kAggr] = std::clamp(base[genetics::kAggr] + 0.08f * rng.normal(), 0.0f, 1.0f);
-        g[genetics::kMutRate] = std::clamp(0.45f + 0.06f * rng.normal(), 0.05f, 1.0f);
+        g[genetics::kMutRate] = std::clamp(0.42f + 0.08f * rng.normal(), 0.05f, 1.0f);
 
         const float x = rng.uniform() * cfg.worldW;
         const float y = rng.uniform() * cfg.worldH;

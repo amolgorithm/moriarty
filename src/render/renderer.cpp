@@ -124,8 +124,32 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
     clock_ += dt;
     const int sw = GetScreenWidth(), sh = GetScreenHeight();
     const Vector2 mouse = GetMousePosition();
+    const float wheel = GetMouseWheelMove();
     const bool scrollingSpecies =
-        vs.hud && hud_.scrollSpecies(GetMouseWheelMove(), mouse, sh, snap.species.size(), snap.selected.valid);
+        vs.hud && hud_.scrollSpecies(wheel, mouse, sh, snap.species.size(), snap.selected.valid);
+    const float inspectorWidth = std::min(static_cast<float>(sw) * 0.48f, 720.0f);
+    const float inspectorHeight = std::min(static_cast<float>(sh) - 24.0f, 760.0f);
+    const Rectangle inspectorPanel{static_cast<float>(sw) - inspectorWidth - 12.0f,
+                                   (static_cast<float>(sh) - inspectorHeight) * 0.5f,
+                                   inspectorWidth, inspectorHeight};
+    const bool overInspector = vs.unitView && snap.selected.valid &&
+                               CheckCollisionPointRec(mouse, inspectorPanel);
+    bool scrollingUnits = false;
+    if (!scrollingSpecies && overInspector && wheel != 0.0f) {
+        constexpr std::size_t kColumns = 4;
+        constexpr float kCellHeight = 34.0f;
+        const std::size_t visibleRows = std::max<std::size_t>(
+            1, static_cast<std::size_t>(std::max(1.0f, (inspectorHeight - 116.0f) / kCellHeight)));
+        const std::size_t totalRows = (snap.selected.units.size() + kColumns - 1) / kColumns;
+        const std::size_t maxScroll = totalRows > visibleRows ? totalRows - visibleRows : 0;
+        const int delta = static_cast<int>(wheel * 3.0f);
+        if (delta != 0) {
+            const auto next = static_cast<long long>(unitScrollRows_) - delta;
+            unitScrollRows_ = static_cast<std::size_t>(
+                std::clamp(next, 0LL, static_cast<long long>(maxScroll)));
+            scrollingUnits = true;
+        }
+    }
 
     if (IsKeyPressed(KEY_SPACE)) vs.paused = !vs.paused;
     if (IsKeyPressed(KEY_ONE)) vs.color = ColorMode::Species;
@@ -147,6 +171,7 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
         vs.follow = false;
         camera_.setFollow(false);
         vs.unitView = false;
+        unitScrollRows_ = 0;
     }
     if (IsKeyPressed(KEY_TAB) && !snap.species.empty()) {
         std::vector<std::uint32_t> ids;
@@ -169,6 +194,7 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
     }
     if (IsKeyPressed(KEY_U) && vs.selected != 0 && snap.selected.valid) {
         vs.unitView = !vs.unitView;
+        unitScrollRows_ = 0;
         vs.follow = true;
         camera_.setFollow(true);
         camera_.flyTo(snap.selected.a.x, snap.selected.a.y, vs.unitView ? 28.0f : 7.0f, sw, sh,
@@ -182,9 +208,11 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
         const std::int64_t row = hud_.speciesRowAt(mouse);
         if (row >= 0) {
             focusSpecies(vs, snap, row);
-        } else if (!hud_.overPanel(mouse)) {
+        } else if (!hud_.overPanel(mouse) &&
+                   !(vs.unitView && CheckCollisionPointRec(mouse, inspectorPanel))) {
             const int i = pickAgent(snap, mouse, 10.0f);
             vs.selected = i >= 0 ? snap.agents[static_cast<std::size_t>(i)].id : 0;
+            unitScrollRows_ = 0;
             vs.unitView = false;
             vs.follow = i >= 0;
             camera_.setFollow(vs.follow);
@@ -196,7 +224,7 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
     }
 
     if (IsWindowResized()) camera_.onResize(snap.worldW, snap.worldH, sw, sh);
-    camera_.update(dt, !scrollingSpecies);
+    camera_.update(dt, !scrollingSpecies && !scrollingUnits);
     if (camera_.interrupted()) vs.follow = false;
 
     // the selected organism died
@@ -204,6 +232,7 @@ void Renderer::pollInput(ViewState& vs, const RenderSnapshot& snap) {
         vs.selected = 0;
         vs.follow = false;
         vs.unitView = false;
+        unitScrollRows_ = 0;
         camera_.setFollow(false);
     }
     if (vs.follow && snap.selected.valid) camera_.setGoal(snap.selected.a.x, snap.selected.a.y);
@@ -377,26 +406,42 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
                {panel.x + 16.0f, panel.y + 36.0f}, 9.0f, 1.0f, col(theme::textDim));
     DrawTextEx(font_, "S09 mix  S10-11 current  S12 group  S13 alignment  S14 food  S15 age",
                {panel.x + 16.0f, panel.y + 48.0f}, 9.0f, 1.0f, col(theme::textDim));
-    DrawTextEx(font_, "a/b: source  w: learned(inherited) gain  b: bias  p: plasticity  v: expressed value",
+    DrawTextEx(font_, "S16 heat  S17 prey value  S18 threat urgency",
                {panel.x + 16.0f, panel.y + 60.0f}, 9.0f, 1.0f, col(theme::textDim));
+    DrawTextEx(font_, "a/b: source  w: learned gain  iw: inherited gain  b: bias  p: plasticity  v: value",
+               {panel.x + 16.0f, panel.y + 72.0f}, 9.0f, 1.0f, col(theme::textDim));
 
-    static constexpr const char* kOps[] = {"id", "add", "mul", "sub", "min", "max", "abs", "tanh", "memory"};
-    static constexpr const char* kPorts[] = {"x-force", "y-force", "uptake", "resource", "defense", "cohesion", "hunt"};
+    static constexpr const char* kOps[] = {
+        "id", "add", "mul", "sub", "min", "max", "abs", "tanh", "memory", "gt", "lt"};
+    static constexpr const char* kPorts[] = {
+        "x-force", "y-force", "uptake", "resource", "defense", "cohesion", "hunt", "reproduction"};
     static constexpr Rgb kUnitColors[] = {
         {114, 177, 155}, {125, 164, 216}, {199, 148, 218}, {224, 151, 111},
         {216, 190, 111}, {107, 185, 194}, {213, 132, 153}, {154, 174, 124},
-        {181, 151, 211}};
-    constexpr int kColumns = 4;
-    const float left = panel.x + 12.0f, top = panel.y + 84.0f;
+        {181, 151, 211}, {208, 126, 165}, {110, 173, 190}};
+    constexpr std::size_t kColumns = 4;
+    constexpr float kCellHeight = 34.0f;
+    const float left = panel.x + 12.0f, top = panel.y + 104.0f;
     const float cellW = (width - 24.0f) / static_cast<float>(kColumns);
-    const float cellH = (height - 96.0f) /
-                        static_cast<float>((units.size() + kColumns - 1) / kColumns);
+    const std::size_t visibleRows = std::max<std::size_t>(
+        1, static_cast<std::size_t>(std::max(1.0f, (height - 116.0f) / kCellHeight)));
+    const std::size_t totalRows = (units.size() + kColumns - 1) / kColumns;
+    const std::size_t maxScroll = totalRows > visibleRows ? totalRows - visibleRows : 0;
+    unitScrollRows_ = std::min(unitScrollRows_, maxScroll);
+    const std::size_t firstUnit = unitScrollRows_ * kColumns;
+    const std::size_t lastUnit = std::min(units.size(), firstUnit + visibleRows * kColumns);
+    char range[96];
+    std::snprintf(range, sizeof range, "Wheel: scroll units  |  showing %zu-%zu of %zu",
+                  firstUnit + 1, lastUnit, units.size());
+    DrawTextEx(font_, range, {panel.x + 16.0f, panel.y + 86.0f}, 9.0f, 1.0f, col(theme::accent));
     auto position = [&](std::size_t i) {
-        const std::size_t row = i / kColumns, column = i % kColumns;
+        const std::size_t visibleIndex = i - firstUnit;
+        const std::size_t row = visibleIndex / kColumns, column = visibleIndex % kColumns;
         return Rectangle{left + static_cast<float>(column) * cellW + 3.0f,
-                         top + static_cast<float>(row) * cellH + 2.0f, cellW - 6.0f, cellH - 4.0f};
+                         top + static_cast<float>(row) * kCellHeight + 2.0f,
+                         cellW - 6.0f, kCellHeight - 4.0f};
     };
-    for (std::size_t i = 0; i < units.size(); ++i) {
+    for (std::size_t i = firstUnit; i < lastUnit; ++i) {
         const auto& unit = units[i];
         const Rectangle r = position(i);
         auto inputName = [&](std::uint16_t source) {
@@ -421,12 +466,14 @@ void Renderer::drawCircuitInspector(const RenderSnapshot& snap) {
         }
         const std::string sourceA = inputName(unit.sourceA);
         const std::string sourceB = inputName(unit.sourceB);
-        std::snprintf(line, sizeof line, "a%s b%s w%.1f(%.1f) b%.1f p%.2f v%.2f", sourceA.c_str(), sourceB.c_str(),
-                      static_cast<double>(unit.weight), static_cast<double>(unit.inheritedWeight),
-                      static_cast<double>(unit.bias),
+        std::snprintf(line, sizeof line, "a%s b%s w%.1f b%.1f", sourceA.c_str(), sourceB.c_str(),
+                      static_cast<double>(unit.weight), static_cast<double>(unit.bias));
+        DrawTextEx(font_, line, {r.x + 6.0f, r.y + 12.0f}, 8.0f, 1.0f, col(theme::textDim));
+        std::snprintf(line, sizeof line, "p%.2f iw%.1f v%.2f",
                       static_cast<double>(unit.plasticity),
+                      static_cast<double>(unit.inheritedWeight),
                       static_cast<double>(unit.value));
-        DrawTextEx(font_, line, {r.x + 6.0f, r.y + 15.0f}, 8.0f, 1.0f, col(theme::textDim));
+        DrawTextEx(font_, line, {r.x + 6.0f, r.y + 21.0f}, 8.0f, 1.0f, col(theme::textDim));
     }
 }
 
